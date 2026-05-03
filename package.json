@@ -1,0 +1,13 @@
+{
+  "name": "wavehopper",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --hot server/relay.ts",
+    "start": "bun run server/relay.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

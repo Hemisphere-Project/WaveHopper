@@ -1,0 +1,52 @@
+---
+id: dublab
+name: Dublab
+site: https://www.dublab.com/
+status: added
+last_checked: 2026-05-03
+---
+
+## Channels
+- [x] main (Los Angeles) — https://dublab.out.airtime.pro/dublab_a
+
+(Sister stations dublab.de, dublab.es, dublab.jp, dublab.com.br are linked from
+the homepage but operate as separate sites with their own players. Not imported
+here — would need their own `/import-station` runs.)
+
+## Extraction notes
+The homepage is a Vue SPA: raw HTML is just `<div id="app"></div>` with no inline
+state. URLs are baked into the JS bundle. Steps:
+
+1. `curl -sL https://www.dublab.com/` → 2KB shell, no streams.
+2. From the HTML, grab the script paths (`/js/app.*.js`, `/js/chunk-vendors.*.js`)
+   and `curl` them to `/tmp/`.
+3. `grep -ioE '(\.mp3|\.m3u8|\.aac|stream|out\.airtime|livepeer|icecast)' app.js`
+   surfaces two candidates:
+   - `https://livepeercdn.studio/hls/8d33n2at0gq7aud6/index.m3u8` — used by the
+     `<video>`-ref HLS player. This is Dublab's **video** broadcast (Dublab
+     Visions). When no stream is live the manifest returns
+     `#EXT-X-ERROR: Stream open failed` followed by `#EXT-X-ENDLIST`.
+   - `https://dublab.out.airtime.pro/dublab_a` — Airtime.pro Icecast 2.4.0
+     stream, 192kbps MP3. **This is the actual radio audio.** Picked this one.
+
+The fact that the audio stream is on a different host (Airtime.pro, a
+Sourcefabric Airtime install) than the video stream (Livepeer) is the key
+insight — don't assume one player URL covers both.
+
+Also visible in the bundle but not used:
+- `http://74.62.195.106:8000/live/dubhome.flv` — legacy FLV, IP-only, HTTP-only.
+- `https://lvpr.tv?v=8d33n2at0gq7aud6` — Livepeer's hosted player wrapper.
+- `https://player.dacast.com/...` — appears to be a fallback video embed.
+
+## Verification
+- Format: MP3 (audio/mpeg), 192kbps, 44.1kHz stereo (Icecast headers)
+- Scheme: https
+- CORS: `Access-Control-Allow-Origin: *`
+- Mixed-content risk: none
+- Server: Icecast 2.4.0-kh15
+- icy-name: dublab, icy-description: "coming at you from LA"
+
+## Open questions
+- Add dublab.de / dublab.es / dublab.jp / dublab.com.br as separate stations?
+  They're independent operations broadcasting from Berlin, Barcelona, Tokyo,
+  São Paulo respectively. Each would need its own import.

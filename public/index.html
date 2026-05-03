@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0a0a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="WaveHopper">
+  <title>WaveHopper</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main id="app">
+    <header class="bar">
+      <h1>WAVEHOPPER</h1>
+      <button id="mode-toggle" class="icon-btn" aria-label="Settings" type="button">⚙</button>
+    </header>
+
+    <section id="now" class="now" aria-live="polite">
+      <div class="now-station">—</div>
+      <div class="now-channel"></div>
+      <div class="now-city"></div>
+      <div class="controls">
+        <button id="play" class="btn btn-primary" type="button" aria-label="Play">▶ PLAY</button>
+        <button id="next" class="btn" type="button" aria-label="Next station">⏭ NEXT</button>
+      </div>
+      <div class="status" id="status"></div>
+    </section>
+
+    <section class="list-wrap">
+      <div class="list-label">STATIONS</div>
+      <ul id="list" class="list"></ul>
+    </section>
+  </main>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
