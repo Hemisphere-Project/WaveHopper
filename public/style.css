@@ -8,6 +8,16 @@
     U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
     U+2215, U+FEFF, U+FFFD;
 }
+@font-face {
+  font-family: 'Fredoka';
+  font-style: normal;
+  font-weight: 400 600;          /* variable font, used by Fantasy skin only */
+  font-display: swap;
+  src: url('/vendor/fredoka-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
 
 :root {
   --bg: #0a0a0a;
@@ -19,24 +29,12 @@
   --shadow: 4px 4px 0 0 var(--line);
 }
 
-/* Skins override the base palette. Station accent is set inline by JS on :root;
-   monochrome skins (green/amber) signal via .skin-mono so JS skips overriding
-   the accent — keeping CRT vibes intact. */
-body[data-skin="green"] {
-  --bg: #001a05;
-  --fg: #4cff7a;
-  --dim: #1f7a3a;
-  --line: #0e3a1c;
-  --accent: #4cff7a;
-  --accent-fg: #001a05;
-}
-body[data-skin="amber"] {
-  --bg: #1a0f00;
-  --fg: #ffb347;
-  --dim: #8a5a1f;
-  --line: #3d2a0f;
-  --accent: #ffb347;
-  --accent-fg: #1a0f00;
+/* Skins override the base palette. Station accent is set inline by JS on :root for
+   skins flagged mono:false (Dark, Paper). For mono:true skins (Fantasy, Clippy) the
+   skin's own --accent wins so the visual identity stays coherent.
+   Dark skin is the :root default — declared explicitly only for completeness. */
+body[data-skin="dark"] {
+  /* same as :root */
 }
 body[data-skin="paper"] {
   --bg: #f4ecd8;
@@ -45,6 +43,146 @@ body[data-skin="paper"] {
   --line: #c8bfa6;
   --accent-fg: #1c1a14;
 }
+
+/* === Fantasy: light unicorn / hyper-pop disney. Rounded corners, gradient title,
+       pastel pink/lavender bg, Fredoka rounded font. */
+body[data-skin="fantasy"] {
+  --bg: #fff0f7;
+  --fg: #5e2ca5;
+  --dim: #b07ac6;
+  --line: #ffd1e8;
+  --accent: #ff4f9a;
+  --accent-fg: #ffffff;
+  --shadow: 4px 4px 0 0 #ffb0d4;
+  font-family: 'Fredoka', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-smooth: always;
+  text-rendering: optimizeLegibility;
+}
+body[data-skin="fantasy"] h1 {
+  background: linear-gradient(90deg, #ff4f9a 0%, #b04dff 50%, #00d4ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+body[data-skin="fantasy"] .now,
+body[data-skin="fantasy"] .btn,
+body[data-skin="fantasy"] .icon-btn,
+body[data-skin="fantasy"] .skin-btn {
+  border-radius: 18px;
+  font-family: inherit;
+}
+body[data-skin="fantasy"] .now { border-width: 3px; }
+body[data-skin="fantasy"] .now-station {
+  font-weight: 600;
+  letter-spacing: 0;
+  background: linear-gradient(90deg, #ff4f9a, #b04dff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+body[data-skin="fantasy"] .row { border-bottom-color: #ffe0ee; }
+body[data-skin="fantasy"] .row:hover { background: #ffe6f3; }
+
+/* === Clippy: retro Word document. Comic Sans, classic Win98 chrome, blue title bar.
+       Sharp corners, bevel borders, no chunky shadow. */
+body[data-skin="clippy"] {
+  --bg: #fffef0;
+  --fg: #1c1c1c;
+  --dim: #6b6b6b;
+  --line: #c0c0c0;
+  --accent: #003c8e;
+  --accent-fg: #ffffff;
+  --shadow: 1px 1px 0 0 #808080;
+  font-family: 'Comic Sans MS', 'Comic Sans', 'Chalkboard SE', cursive;
+  -webkit-font-smoothing: antialiased;
+  font-smooth: always;
+  font-size: 18px;
+}
+body[data-skin="clippy"] .bar {
+  background: linear-gradient(180deg, #1064c8 0%, #003c8e 100%);
+  border-bottom: 2px solid #c0c0c0;
+  padding: 6px 8px;
+}
+body[data-skin="clippy"] h1 {
+  font-family: inherit;
+  color: #ffffff;
+  letter-spacing: 0;
+  font-size: 20px;
+  font-weight: bold;
+}
+body[data-skin="clippy"] .icon-btn {
+  background: #c0c0c0;
+  color: #1c1c1c;
+  border: 2px solid;
+  border-color: #ffffff #404040 #404040 #ffffff;
+  border-radius: 0;
+  font-family: inherit;
+  font-size: 18px;
+}
+body[data-skin="clippy"] .icon-btn:hover,
+body[data-skin="clippy"] .icon-btn:focus-visible {
+  border-color: #ffffff #404040 #404040 #ffffff;
+  color: #1c1c1c;
+}
+body[data-skin="clippy"] .now {
+  background: #ffffff;
+  border: 1px solid #808080;
+  box-shadow: 1px 1px 0 0 #808080;
+  border-radius: 0;
+}
+body[data-skin="clippy"] .now-station,
+body[data-skin="clippy"] .now-channel,
+body[data-skin="clippy"] .now-city,
+body[data-skin="clippy"] .now-meta-title,
+body[data-skin="clippy"] .now-meta-sub {
+  font-family: inherit;
+  letter-spacing: 0;
+}
+body[data-skin="clippy"] .now-station { color: #003c8e; font-weight: bold; font-size: 26px; }
+body[data-skin="clippy"] .btn {
+  background: #c0c0c0;
+  color: #1c1c1c;
+  border: 2px solid;
+  border-color: #ffffff #404040 #404040 #ffffff;
+  border-radius: 0;
+  box-shadow: none;
+  font-family: inherit;
+  letter-spacing: 0;
+}
+body[data-skin="clippy"] .btn:active {
+  border-color: #404040 #ffffff #ffffff #404040;
+  box-shadow: none;
+  transform: none;
+}
+body[data-skin="clippy"] .btn-primary {
+  background: #003c8e;
+  color: #ffffff;
+  border-color: #6e9eee #001a4e #001a4e #6e9eee;
+}
+body[data-skin="clippy"] .btn-primary:active {
+  border-color: #001a4e #6e9eee #6e9eee #001a4e;
+  box-shadow: none;
+}
+body[data-skin="clippy"] .row { border-bottom: 1px dotted var(--line); }
+body[data-skin="clippy"] .row:hover { background: #e8e8d8; }
+body[data-skin="clippy"] .row.active { color: #003c8e; font-weight: bold; }
+body[data-skin="clippy"] .skin-btn {
+  background: #c0c0c0;
+  color: #1c1c1c;
+  border: 2px solid;
+  border-color: #ffffff #404040 #404040 #ffffff;
+  border-radius: 0;
+  font-family: inherit;
+}
+body[data-skin="clippy"] .skin-btn[aria-pressed="true"] {
+  background: #003c8e;
+  color: #ffffff;
+  border-color: #001a4e #6e9eee #6e9eee #001a4e;
+}
+body[data-skin="clippy"] .list-label { letter-spacing: 0; }
 
 * { box-sizing: border-box; }
 

@@ -1,54 +1,66 @@
 # WaveHopper
 
-Web Radio aggregate, select and play.
-
-A simple browser front-end that aggregates a curated list of webradio streams behind a unified player. Vanilla JS frontend, thin Bun relay (HTTPS-upgrade + CORS + optional metadata), nginx reverse proxy with SSL in front.
+A curated webradio aggregator. Pick a station, hop to the next one, lock your phone and keep listening. Static frontend (vanilla JS PWA) + a small PHP dispatcher for now-playing metadata. No audio relay — every station is HTTPS with permissive CORS, so the browser plays them directly.
 
 ## Layout
 
 ```
 WaveHopper/
-├── public/                    Frontend (HTML/CSS/JS, served as static)
-├── server/relay.ts            Bun relay (stream proxying, CORS)
-├── stations.json              Source of truth — one entry per channel
-├── stations/                  Per-station research notes (Markdown)
-│   ├── _template.md           Template for new stations
-│   └── <id>.md                One file per station
+├── public/                       Web docroot (served by nginx in prod)
+│   ├── index.html
+│   ├── app.js                    Frontend entry point (~20KB, no build step)
+│   ├── style.css                 Pixel/8-bit aesthetic + 4 skins
+│   ├── manifest.webmanifest      PWA manifest
+│   ├── sw.js                     Service worker (shell cache, no stream interception)
+│   ├── stations.json             Built artifact — committed for static hosting
+│   ├── vendor/
+│   │   ├── vt323-latin.woff2     VT323 pixel font (Dark / Paper skins)
+│   │   ├── fredoka-latin.woff2   Fredoka rounded font (Fantasy skin)
+│   │   └── hls.light.min.js      Lazy-loaded only when an HLS station is picked
+│   ├── img/favicon/              PWA icons (192/512/maskable, apple-touch, favicons)
+│   └── api/
+│       ├── now-playing.php       Per-station now-playing dispatcher
+│       ├── fetchers/             One PHP fetcher per source type (nts, airtime, …)
+│       ├── lib/                  Shared PHP helpers
+│       └── cache/                Filesystem cache for upstream metadata
+├── server/
+│   ├── relay.ts                  Bun dev server (static + builds stations.json on the fly)
+│   ├── stations.ts               Reads stations/<id>.json + _order.json, returns the list
+│   └── build-stations.ts         Writes the static public/stations.json artifact
+├── stations/                     Per-station source files, source of truth
+│   ├── _order.json               Curated display order
+│   ├── _template.md              Template for new stations
+│   ├── <id>.json                 Channel definition (one per playable channel)
+│   └── <id>.md                   Research notes (status, extraction method, etc.)
 └── .claude/skills/
-    └── import-station/        The /import-station skill
+    └── import-station/           The /import-station skill
 ```
 
 ## Station data model
 
-`stations.json` is a flat array of channels — multi-channel stations (e.g. NTS) appear as multiple entries:
+Two parallel files per station:
+
+**`stations/<id>.json`** — the playable channel definition. Multi-channel stations (e.g. NTS) become multiple JSON files (`nts-1.json`, `nts-2.json`, `nts-poolside.json`, …):
 
 ```json
-[
-  {
-    "id": "nts-1",
-    "station": "NTS",
-    "channel": "1",
-    "city": "London",
-    "url": "https://stream.example.com/...",
-    "format": "aac",
-    "color": "#ff0000"
-  }
-]
+{
+  "id": "nts-1",
+  "station": "NTS",
+  "channel": "1",
+  "city": "London",
+  "url": "https://stream-relay-geo.ntslive.net/stream",
+  "format": "mp3",
+  "color": "#fff205",
+  "nowPlaying": { "type": "nts" },
+  "defaultDisabled": false
+}
 ```
 
-Each station also has a sibling Markdown file at `stations/<id>.md` tracking research progress with frontmatter:
+Optional fields:
+- `defaultDisabled: true` — hidden from the main list on first run, opt-in via config (used for the 16 NTS Mixtapes so the default catalog stays small).
+- `nowPlaying`: `{ "type": "nts" | "airtime" | "radiocult" | "lyl-graphql" | "hls-id3" | "none" }`. Some types accept extra fields (e.g. airtime takes `endpoint`).
 
-```yaml
----
-id: nts
-name: NTS Live
-site: https://www.nts.live/
-status: pending
-last_checked:
----
-```
-
-### Status state machine
+**`stations/<id>.md`** — research notes with frontmatter `status:` field. Lifecycle:
 
 | Status        | Meaning                                                    |
 |---------------|------------------------------------------------------------|
@@ -56,42 +68,76 @@ last_checked:
 | `researching` | Actively investigating, partial info                       |
 | `extracted`   | Candidate stream URL(s) found, not yet verified            |
 | `verified`    | `curl` confirms it streams correctly                       |
-| `added`       | Entry exists in `stations.json` and is wired up            |
+| `added`       | JSON file exists and the station is wired up               |
 | `broken`      | Could not crack from public site, parked                   |
+
+**`stations/_order.json`** — the curated display order (array of ids). Stations not listed are appended alphabetically; the build script ([server/stations.ts](server/stations.ts)) handles the merge.
+
+## Current catalog
+
+23 channels across 6 stations, 2 parked:
+
+| Station        | Channels | Source         | Status |
+|----------------|----------|----------------|--------|
+| Dublab         | 1        | Airtime.pro    | added  |
+| Kiosk Radio    | 1        | Airtime.pro    | added  |
+| LYL Radio      | 1        | self-hosted    | added  |
+| Noods Radio    | 1        | Radiocult      | added  |
+| NTS            | 18       | Radiomast      | added  |
+| The Lot Radio  | 1        | Livepeer (HLS) | added  |
+| Threads Radio  | —        | dead Airtime   | broken |
+| VIZI Radio     | —        | site offline   | broken |
+
+## How playback works
+
+- **MP3 (Icecast)**: native `<audio>` everywhere.
+- **HLS**: native on Safari/iOS; on Chrome/Firefox/Android Chrome, `hls.js` is lazily fetched the first time the user picks an HLS station (one-time ~110KB gz).
+- **Auto-skip**: if the active stream errors fatally (HLS manifest down, MP3 server unreachable), the player auto-advances to the next enabled station with one HLS soft-recovery attempt first. After all enabled stations fail, it stops with "no stations on air".
+- **Background hardening**: stuck-time watcher (8s threshold), reattach on `visibilitychange` / `online`, never pauses on backgrounding (the OS handles that).
+- **Last station memory**: on reload, the previously-played station is pre-selected; tapping PLAY resumes it without a station picker round-trip.
+
+## Now-playing metadata
+
+[public/api/now-playing.php](public/api/now-playing.php) is a tiny dispatcher: takes `?id=<station-id>`, looks up the station's `nowPlaying.type`, runs the matching fetcher in [public/api/fetchers/](public/api/fetchers/), caches the result on disk, and returns a normalized `{ title, subtitle?, ends?, artwork? }` payload. The frontend polls every 30 seconds while playing and visible — paused or backgrounded means no polling.
+
+`hls-id3` and `none` skip the dispatcher (the former reads ID3 from HLS frags client-side, the latter has no metadata).
+
+## PWA
+
+- Installable on Android Chrome and iOS Safari ("Add to Home Screen"). Runs in standalone mode for better lock-screen audio reliability than a tab.
+- Service worker pre-caches the app shell so the player launches offline (streams obviously still need the network).
+- Media Session API exposes the current station + show on the OS lock screen and Bluetooth controls (play/pause/next/previous).
+
+## Skins
+
+Four themes, persisted to `localStorage`:
+
+- **Dark** — VT323 pixel font, near-black bg, station accent color drives the active row + play button.
+- **Paper** — VT323 on cream, station accent.
+- **Fantasy** — Fredoka rounded font, pastel pink/lavender bg, gradient title.
+- **Clippy** — Comic Sans MS, retro Word-doc chrome with Win98 bevel buttons.
+
+Fantasy and Clippy ignore the per-station accent so the skin's identity stays coherent. Switch in **CONFIG** mode (gear icon).
+
+## Persistence (localStorage)
+
+| Key                  | Purpose                                       |
+|----------------------|-----------------------------------------------|
+| `wh:disabled`        | Array of station ids the user has hidden      |
+| `wh:skin`            | Current skin id                               |
+| `wh:lastStationId`   | Most recently played station, for auto-attach |
 
 ## The `/import-station` skill
 
-A project skill at `.claude/skills/import-station/SKILL.md` automates extracting a single station's stream URL. It is iterative by design: process one station at a time so progress survives interrupted sessions, and the skill's "Patterns we've seen" section sharpens after each station.
-
-### Usage in Claude Code
-
-Adding a brand new station:
+Project skill at `.claude/skills/import-station/SKILL.md`. Iterative by design — process one station at a time so progress survives interrupted sessions, and the skill's "Patterns we've seen" section sharpens after each station.
 
 ```
 /import-station <id>
 ```
 
-If `stations/<id>.md` does not exist, the skill copies the template and asks for the homepage URL before proceeding.
+Same command for: brand new station (scaffolds from `_template.md`), resuming a parked one, or refreshing a `verified`/`added` whose URL has rotted.
 
-Resuming a previously parked station (e.g. one in `researching` or `broken` status):
-
-```
-/import-station <id>
-```
-
-Same command — the skill reads the existing MD, sees prior attempts in the Extraction notes, and continues from there.
-
-Refreshing a `verified`/`added` station whose stream URL has rotted:
-
-```
-/import-station <id>
-```
-
-Same again — re-runs verification, updates `last_checked`, and rewrites the URL if it changed.
-
-### Checking overall progress
-
-Quick dashboard from the shell:
+### Quick status dashboard
 
 ```sh
 grep -H '^status:' stations/*.md
@@ -103,31 +149,30 @@ Or to see what's left:
 grep -l 'status: pending\|status: researching\|status: broken' stations/*.md
 ```
 
-### Adding a station that isn't in the list yet
-
-1. Run `/import-station <new-id>` — the skill will scaffold `stations/<new-id>.md` from the template.
-2. Provide the homepage URL when asked.
-3. The skill takes it from there.
-
-## Initial station list
-
-Curated kickoff set:
-
-| id        | Station         | Site                                  |
-|-----------|-----------------|---------------------------------------|
-| `nts`     | NTS Live        | https://www.nts.live/                 |
-| `dublab`  | Dublab          | https://www.dublab.com/               |
-| `thelot`  | The Lot Radio   | https://www.thelotradio.com/          |
-| `threads` | Threads Radio   | https://threadsradio.com/             |
-| `noods`   | Noods Radio     | https://noodsradio.com/               |
-| `lyl`     | LYL Radio       | https://lyl.live/                     |
-| `vizi`    | VIZI Radio      | https://viziradio.com/live-new.php    |
-
 ## Development
 
 ```sh
 bun install
-bun run dev        # relay with hot reload on :3000
+bun run dev               # static dev server on :3000, rebuilds stations.json on the fly
 ```
 
-The frontend (`public/`) is static and can be served by nginx in production; the relay handles `/stream/:id` and (later) `/now-playing/:id`.
+The dev server serves [public/](public/) and synthesises `/stations.json` from the per-station files in [stations/](stations/). PHP isn't proxied — for local now-playing testing, run a separate PHP-FPM in front of [public/](public/) or skip metadata locally.
+
+### Building the static stations artifact
+
+```sh
+bun run build:stations    # writes public/stations.json from stations/<id>.json + _order.json
+```
+
+Run this before deploying to a host that doesn't run the Bun dev server (i.e. plain nginx or shared PHP hosting).
+
+## Deploy
+
+Production assumes nginx + PHP-FPM (or any static + PHP host). The Bun runtime is dev-only.
+
+1. `bun run build:stations` to refresh `public/stations.json`.
+2. Sync [public/](public/) to the docroot.
+3. Configure PHP-FPM for `*.php` under `/api/`. Make sure `public/api/cache/` is writable by the PHP user.
+4. nginx serves everything else as static files. PWA install requires HTTPS — terminate TLS at nginx.
+
+Service worker scope is `/`, so nothing special is needed in nginx beyond serving `sw.js` with the right MIME type.

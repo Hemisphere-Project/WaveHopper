@@ -13,6 +13,7 @@ const SHELL = [
   '/style.css',
   '/app.js',
   '/vendor/vt323-latin.woff2',
+  '/vendor/fredoka-latin.woff2',
   '/vendor/hls.light.min.js',
   '/manifest.webmanifest',
 ];

@@ -60,6 +60,15 @@
     }
   },
   {
+    "id": "wavezero",
+    "station": "Wave Zero",
+    "channel": "main",
+    "city": "Mediterranean",
+    "url": "https://stream.ondezero.net/listen/oz/radio.mp3",
+    "format": "mp3",
+    "color": "#e63946"
+  },
+  {
     "id": "nts-1",
     "station": "NTS",
     "channel": "1",

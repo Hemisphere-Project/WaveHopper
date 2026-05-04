@@ -24,14 +24,17 @@ const els = {
 
 const LS_KEY = 'wh:disabled';
 const LS_SKIN = 'wh:skin';
+const LS_LAST = 'wh:lastStationId';
 
 const SKINS = [
-  { id: 'default', label: 'Default', mono: false },
-  { id: 'green',   label: 'Green',   mono: true  },
-  { id: 'amber',   label: 'Amber',   mono: true  },
+  { id: 'dark',    label: 'Dark',    mono: false },
   { id: 'paper',   label: 'Paper',   mono: false },
+  { id: 'fantasy', label: 'Fantasy', mono: true  },
+  { id: 'clippy',  label: 'Clippy',  mono: true  },
 ];
 const SKIN_IDS = new Set(SKINS.map((s) => s.id));
+// Older builds wrote 'default' / 'green' / 'amber' here. Fold those into 'dark'.
+const SKIN_MIGRATIONS = { default: 'dark', green: 'dark', amber: 'dark' };
 
 const state = {
   stations: [],
@@ -42,7 +45,7 @@ const state = {
   autoSkipChain: 0,
   epoch: 0,
   mode: 'player',        // 'player' | 'config'
-  skin: 'default',
+  skin: 'dark',
 };
 
 // Track currentTime progression so we can detect a frozen audio element even when
@@ -132,8 +135,22 @@ function applyAccent(color) {
 function loadSkin() {
   try {
     const raw = localStorage.getItem(LS_SKIN);
-    if (raw && SKIN_IDS.has(raw)) state.skin = raw;
+    if (!raw) return;
+    const migrated = SKIN_MIGRATIONS[raw];
+    if (migrated) {
+      state.skin = migrated;
+      try { localStorage.setItem(LS_SKIN, migrated); } catch {}
+      return;
+    }
+    if (SKIN_IDS.has(raw)) state.skin = raw;
   } catch {}
+}
+
+function saveLastStation(id) {
+  try { localStorage.setItem(LS_LAST, id); } catch {}
+}
+function loadLastStation() {
+  try { return localStorage.getItem(LS_LAST); } catch { return null; }
 }
 function applySkin() {
   document.body.dataset.skin = state.skin;
@@ -491,6 +508,7 @@ async function selectAndPlay(index, { userInitiated = false } = {}) {
     state.playing = true;
     state.autoSkipChain = 0;
     setStatus('on air');
+    saveLastStation(s.id);
     startNowPlayingPoll(s);
   } catch (err) {
     if (myEpoch !== state.epoch) return;
@@ -689,9 +707,25 @@ async function init() {
     return;
   }
   if (!hadSavedDisabled) seedDefaultDisabled();
+
+  // Pre-select last-played station so PLAY resumes the right one. We don't autoplay —
+  // browsers block audio without a user gesture, and silent failure is worse than
+  // requiring one tap.
+  const lastId = loadLastStation();
+  if (lastId) {
+    const idx = state.stations.findIndex((s) => s.id === lastId && isEnabled(s));
+    if (idx >= 0) state.currentIndex = idx;
+  }
+
   renderList();
   renderNow();
-  setStatus(`${enabledCount()} stations`);
+  if (state.currentIndex >= 0) {
+    const s = state.stations[state.currentIndex];
+    const name = s.channel && s.channel !== 'main' ? `${s.station} · ${s.channel}` : s.station;
+    setStatus(`tap PLAY for ${name}`);
+  } else {
+    setStatus(`${enabledCount()} stations`);
+  }
 }
 
 init();
