@@ -86,103 +86,85 @@ body[data-skin="fantasy"] .now-station {
 body[data-skin="fantasy"] .row { border-bottom-color: #ffe0ee; }
 body[data-skin="fantasy"] .row:hover { background: #ffe6f3; }
 
-/* === Clippy: retro Word document. Comic Sans, classic Win98 chrome, blue title bar.
-       Sharp corners, bevel borders, no chunky shadow. */
-body[data-skin="clippy"] {
-  --bg: #fffef0;
-  --fg: #1c1c1c;
-  --dim: #6b6b6b;
-  --line: #c0c0c0;
-  --accent: #003c8e;
-  --accent-fg: #ffffff;
-  --shadow: 1px 1px 0 0 #808080;
-  font-family: 'Comic Sans MS', 'Comic Sans', 'Chalkboard SE', cursive;
-  -webkit-font-smoothing: antialiased;
-  font-smooth: always;
-  font-size: 18px;
+/* === Winamp: dark retro media player. LCD green on near-black, Win9x bevel chrome.
+       Fixed green accent keeps the classic aesthetic coherent. */
+body[data-skin="winamp"] {
+  --bg: #1a1a1a;
+  --fg: #c0c0c0;
+  --dim: #686868;
+  --line: #303030;
+  --accent: #00e600;
+  --accent-fg: #000000;
+  --shadow: 2px 2px 0 0 #000000;
 }
-body[data-skin="clippy"] .bar {
-  background: linear-gradient(180deg, #1064c8 0%, #003c8e 100%);
-  border-bottom: 2px solid #c0c0c0;
+body[data-skin="winamp"] .bar {
+  background: linear-gradient(180deg, #2c2c3a 0%, #1a1a26 100%);
+  border-bottom: 2px solid #00e600;
   padding: 6px 8px;
 }
-body[data-skin="clippy"] h1 {
-  font-family: inherit;
-  color: #ffffff;
-  letter-spacing: 0;
-  font-size: 20px;
-  font-weight: bold;
+body[data-skin="winamp"] h1 {
+  color: #00e600;
+  letter-spacing: 4px;
 }
-body[data-skin="clippy"] .icon-btn {
-  background: #c0c0c0;
-  color: #1c1c1c;
+body[data-skin="winamp"] .icon-btn {
+  background: #2e2e2e;
+  color: #c0c0c0;
   border: 2px solid;
-  border-color: #ffffff #404040 #404040 #ffffff;
-  border-radius: 0;
-  font-family: inherit;
-  font-size: 18px;
-}
-body[data-skin="clippy"] .icon-btn:hover,
-body[data-skin="clippy"] .icon-btn:focus-visible {
-  border-color: #ffffff #404040 #404040 #ffffff;
-  color: #1c1c1c;
-}
-body[data-skin="clippy"] .now {
-  background: #ffffff;
-  border: 1px solid #808080;
-  box-shadow: 1px 1px 0 0 #808080;
+  border-color: #4a4a4a #111111 #111111 #4a4a4a;
   border-radius: 0;
 }
-body[data-skin="clippy"] .now-station,
-body[data-skin="clippy"] .now-channel,
-body[data-skin="clippy"] .now-city,
-body[data-skin="clippy"] .now-meta-title,
-body[data-skin="clippy"] .now-meta-sub {
-  font-family: inherit;
-  letter-spacing: 0;
+body[data-skin="winamp"] .icon-btn:hover,
+body[data-skin="winamp"] .icon-btn:focus-visible {
+  border-color: #00e600;
+  color: #00e600;
 }
-body[data-skin="clippy"] .now-station { color: #003c8e; font-weight: bold; font-size: 26px; }
-body[data-skin="clippy"] .btn {
-  background: #c0c0c0;
-  color: #1c1c1c;
+body[data-skin="winamp"] .now {
+  background: #0d0d0d;
+  border: 2px solid #303030;
+  border-top-color: #4a4a4a;
+  border-left-color: #4a4a4a;
+  box-shadow: none;
+}
+body[data-skin="winamp"] .now-station { color: #00e600; }
+body[data-skin="winamp"] .btn {
+  background: #2e2e2e;
+  color: #c0c0c0;
   border: 2px solid;
-  border-color: #ffffff #404040 #404040 #ffffff;
+  border-color: #4a4a4a #111111 #111111 #4a4a4a;
   border-radius: 0;
   box-shadow: none;
-  font-family: inherit;
-  letter-spacing: 0;
+  letter-spacing: 1px;
 }
-body[data-skin="clippy"] .btn:active {
-  border-color: #404040 #ffffff #ffffff #404040;
+body[data-skin="winamp"] .btn:active {
+  border-color: #111111 #4a4a4a #4a4a4a #111111;
   box-shadow: none;
   transform: none;
 }
-body[data-skin="clippy"] .btn-primary {
-  background: #003c8e;
-  color: #ffffff;
-  border-color: #6e9eee #001a4e #001a4e #6e9eee;
+body[data-skin="winamp"] .btn-primary {
+  background: #003300;
+  color: #00e600;
+  border-color: #005500 #001500 #001500 #005500;
 }
-body[data-skin="clippy"] .btn-primary:active {
-  border-color: #001a4e #6e9eee #6e9eee #001a4e;
+body[data-skin="winamp"] .btn-primary:active {
+  border-color: #001500 #005500 #005500 #001500;
   box-shadow: none;
 }
-body[data-skin="clippy"] .row { border-bottom: 1px dotted var(--line); }
-body[data-skin="clippy"] .row:hover { background: #e8e8d8; }
-body[data-skin="clippy"] .row.active { color: #003c8e; font-weight: bold; }
-body[data-skin="clippy"] .skin-btn {
-  background: #c0c0c0;
-  color: #1c1c1c;
+body[data-skin="winamp"] .row { border-bottom: 1px solid #252525; }
+body[data-skin="winamp"] .row:hover { background: #222222; }
+body[data-skin="winamp"] .row.active { color: #00e600; }
+body[data-skin="winamp"] .skin-btn {
+  background: #2e2e2e;
+  color: #c0c0c0;
   border: 2px solid;
-  border-color: #ffffff #404040 #404040 #ffffff;
+  border-color: #4a4a4a #111111 #111111 #4a4a4a;
   border-radius: 0;
-  font-family: inherit;
 }
-body[data-skin="clippy"] .skin-btn[aria-pressed="true"] {
-  background: #003c8e;
-  color: #ffffff;
-  border-color: #001a4e #6e9eee #6e9eee #001a4e;
+body[data-skin="winamp"] .skin-btn[aria-pressed="true"] {
+  background: #003300;
+  color: #00e600;
+  border-color: #005500 #001500 #001500 #005500;
 }
-body[data-skin="clippy"] .list-label { letter-spacing: 0; }
+body[data-skin="winamp"] .list-label { letter-spacing: 2px; }
 
 * { box-sizing: border-box; }
 

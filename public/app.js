@@ -11,7 +11,7 @@ const els = {
   modeToggle: $('#mode-toggle'),
   share: $('#share'),
   title: $('.bar h1'),
-  listLabel: $('.list-label'),
+  listLabel: $('.list-wrap .list-label'),
   now: $('#now'),
   nowStation: $('.now-station'),
   nowChannel: $('.now-channel'),
@@ -31,11 +31,18 @@ const SKINS = [
   { id: 'dark',    label: 'Dark',    mono: false },
   { id: 'paper',   label: 'Paper',   mono: false },
   { id: 'fantasy', label: 'Fantasy', mono: true  },
-  { id: 'clippy',  label: 'Clippy',  mono: true  },
+  { id: 'winamp',  label: 'Winamp',  mono: true  },
 ];
 const SKIN_IDS = new Set(SKINS.map((s) => s.id));
 // Older builds wrote 'default' / 'green' / 'amber' here. Fold those into 'dark'.
-const SKIN_MIGRATIONS = { default: 'dark', green: 'dark', amber: 'dark' };
+const SKIN_MIGRATIONS = { default: 'dark', green: 'dark', amber: 'dark', clippy: 'winamp' };
+
+// Bright 8-bit palette for the dark skin — cycles on each station change.
+// Excludes dark/grey tones to keep good contrast against the near-black background.
+const DARK_ACCENTS = [
+  '#ff5555', '#55ffff', '#ffff55', '#ff55ff', '#55ff55',
+  '#ff8800', '#ff0080', '#00ffe0', '#aa55ff', '#ffd700',
+];
 
 const state = {
   stations: [],
@@ -48,6 +55,7 @@ const state = {
   mode: 'player',        // 'player' | 'config'
   skin: 'dark',
   attachedId: null,      // station id whose stream is currently attached to <audio>
+  accentIdx: 0,          // current index into DARK_ACCENTS, advances per station change
 };
 
 // Track currentTime progression so we can detect a frozen audio element even when
@@ -125,10 +133,14 @@ function isMonoSkin() {
   return !!(s && s.mono);
 }
 function applyAccent(color) {
-  // Monochrome skins (green/amber phosphor) keep their fixed accent — let the skin's
-  // CSS variable win by clearing any inline override JS may have set previously.
+  // Monochrome skins keep their fixed accent — let the skin's CSS variable win.
   if (isMonoSkin()) {
     document.documentElement.style.removeProperty('--accent');
+    return;
+  }
+  // Dark skin uses a rotating 8-bit palette instead of per-station colors.
+  if (state.skin === 'dark') {
+    document.documentElement.style.setProperty('--accent', DARK_ACCENTS[state.accentIdx]);
     return;
   }
   if (color) document.documentElement.style.setProperty('--accent', color);
@@ -491,6 +503,9 @@ async function selectAndPlay(index, { userInitiated = false } = {}) {
   if (index < 0 || index >= state.stations.length) return;
   if (userInitiated) state.autoSkipChain = 0;
   const myEpoch = ++state.epoch;
+  if (state.skin === 'dark' && index !== state.currentIndex) {
+    state.accentIdx = (state.accentIdx + 1) % DARK_ACCENTS.length;
+  }
   state.currentIndex = index;
   const s = state.stations[index];
 
