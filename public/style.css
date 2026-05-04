@@ -106,6 +106,7 @@ body[data-skin="winamp"] .bar {
 }
 body[data-skin="winamp"] h1 {
   color: var(--dim);
+  font-size: 22px;
   letter-spacing: 4px;
 }
 body[data-skin="winamp"] .icon-btn {
