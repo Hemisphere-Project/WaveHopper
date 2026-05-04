@@ -221,6 +221,11 @@ body {
   border-bottom: 2px solid var(--line);
   padding-bottom: 8px;
 }
+.bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
 h1 {
   margin: 0;
@@ -239,9 +244,13 @@ h1 {
   height: 44px;
   cursor: pointer;
   padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   /* Safari defaults to emoji presentation for ▶ ⏸ ⏭ ⚙; force text style. */
   font-variant-emoji: text;
 }
+.icon-btn svg { display: block; }
 .icon-btn:hover, .icon-btn:focus-visible {
   border-color: var(--accent);
   color: var(--accent);

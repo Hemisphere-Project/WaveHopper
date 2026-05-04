@@ -9,6 +9,7 @@ const els = {
   next: $('#next'),
   status: $('#status'),
   modeToggle: $('#mode-toggle'),
+  share: $('#share'),
   title: $('.bar h1'),
   listLabel: $('.list-label'),
   now: $('#now'),
@@ -602,6 +603,45 @@ audio.addEventListener('error', () => {
 els.play.addEventListener('click', togglePlay);
 els.next.addEventListener('click', nextStation);
 els.modeToggle.addEventListener('click', () => setMode(state.mode === 'config' ? 'player' : 'config'));
+els.share.addEventListener('click', shareApp);
+
+async function shareApp() {
+  const url = location.origin + '/';
+  // navigator.share is mobile-first; requires a user gesture and HTTPS.
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: 'WaveHopper', text: 'Webradio, hopped.', url });
+    } catch (err) {
+      // AbortError = user dismissed the sheet; anything else falls through to clipboard.
+      if (err && err.name === 'AbortError') return;
+      copyToClipboard(url);
+    }
+    return;
+  }
+  copyToClipboard(url);
+}
+
+async function copyToClipboard(url) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      // Pre-Clipboard-API fallback (older Safari over plain HTTP, etc.).
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    setStatus('link copied');
+  } catch {
+    setStatus('share unavailable', true);
+  }
+}
 
 // Swipe-left on the now-playing card → NEXT. Touch only — desktop has the button.
 (function attachSwipe() {
