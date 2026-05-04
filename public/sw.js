@@ -5,7 +5,7 @@
 //   them directly. Touching a live audio body in a SW would buffer it in memory and break
 //   playback continuity.
 
-const CACHE = 'wh-v1';
+const CACHE = 'wh-v2';
 const SHELL = [
   '/',
   '/index.html',
@@ -14,11 +14,11 @@ const SHELL = [
   '/vendor/vt323-latin.woff2',
   '/vendor/hls.light.min.js',
   '/manifest.webmanifest',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-  '/icons/icon-maskable-512.png',
-  '/icons/apple-touch-icon.png',
-  '/icons/favicon-32.png',
+  '/icons/favicon/android-chrome-192x192.png',
+  '/icons/favicon/android-chrome-512x512.png',
+  '/icons/favicon/apple-touch-icon.png',
+  '/icons/favicon/favicon-32x32.png',
+  '/icons/favicon/favicon.ico',
 ];
 const SHELL_SET = new Set(SHELL);
 
