@@ -610,7 +610,7 @@ async function shareApp() {
   // navigator.share is mobile-first; requires a user gesture and HTTPS.
   if (navigator.share) {
     try {
-      await navigator.share({ title: 'WaveHopper', text: 'Webradio, hopped.', url });
+      await navigator.share({ title: 'WaveHopper', text: 'WaveHopper', url });
     } catch (err) {
       // AbortError = user dismissed the sheet; anything else falls through to clipboard.
       if (err && err.name === 'AbortError') return;
