@@ -353,14 +353,7 @@ function setupMediaSessionActions() {
   navigator.mediaSession.setActionHandler('play', safe(userPlay));
   navigator.mediaSession.setActionHandler('pause', safe(() => audio.pause()));
   navigator.mediaSession.setActionHandler('nexttrack', safe(nextStation));
-  navigator.mediaSession.setActionHandler('previoustrack', safe(() => {
-    // "previous" = previous enabled station (cyclic), since radio has no seek.
-    if (!state.stations.length) return;
-    for (let i = 1; i <= state.stations.length; i++) {
-      const j = (state.currentIndex - i + state.stations.length) % state.stations.length;
-      if (isEnabled(state.stations[j])) { selectAndPlay(j, { userInitiated: true }); return; }
-    }
-  }));
+  navigator.mediaSession.setActionHandler('previoustrack', safe(prevStation));
   // Live radio has no seekable timeline — explicitly null these so the OS hides the scrubber.
   for (const a of ['seekto', 'seekbackward', 'seekforward', 'stop']) {
     try { navigator.mediaSession.setActionHandler(a, null); } catch {}
@@ -590,6 +583,14 @@ function nextStation() {
   selectAndPlay(next, { userInitiated: true });
 }
 
+function prevStation() {
+  if (!state.stations.length) return;
+  for (let i = 1; i <= state.stations.length; i++) {
+    const j = (state.currentIndex - i + state.stations.length) % state.stations.length;
+    if (isEnabled(state.stations[j])) { selectAndPlay(j, { userInitiated: true }); return; }
+  }
+}
+
 audio.addEventListener('play', () => { state.playing = true; renderNow(); });
 audio.addEventListener('playing', () => {
   state.autoSkipChain = 0;
@@ -672,7 +673,7 @@ async function copyToClipboard(url) {
   }
 }
 
-// Swipe-left on the now-playing card → NEXT. Touch only — desktop has the button.
+// Swipe left → NEXT, swipe right → PREV on the now-playing card. Touch only.
 (function attachSwipe() {
   if (!els.now) return;
   let startX = 0, startY = 0, tracking = false, dragX = 0;
@@ -693,8 +694,8 @@ async function copyToClipboard(url) {
     const dy = t.clientY - startY;
     // Vertical-dominant motion is a scroll attempt, not a swipe — bail.
     if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) { tracking = false; els.now.style.transform = RESET; return; }
-    // Visual nudge only on left drag, capped.
-    dragX = Math.max(-80, Math.min(0, dx));
+    // Visual nudge in both directions, capped at ±80px.
+    dragX = Math.max(-80, Math.min(80, dx));
     els.now.style.transform = `translateX(${dragX}px)`;
   }, { passive: true });
 
@@ -704,6 +705,7 @@ async function copyToClipboard(url) {
     els.now.style.transition = 'transform 140ms ease-out';
     els.now.style.transform = RESET;
     if (dragX <= -55) nextStation();
+    else if (dragX >= 55) prevStation();
   }
   els.now.addEventListener('touchend', end);
   els.now.addEventListener('touchcancel', end);
