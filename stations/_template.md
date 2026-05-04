@@ -18,4 +18,7 @@ last_checked:
 - CORS: ?
 - Mixed-content risk: ?
 
+## Now-playing
+(filled in by /import-now-playing — source endpoint, mapping to title/subtitle/starts/ends, cache key, any caveats)
+
 ## Open questions

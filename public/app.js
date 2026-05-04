@@ -17,6 +17,9 @@ const els = {
   nowCity: $('.now-city'),
   controls: $('.controls'),
   skinRow: $('#skin-row'),
+  meta: $('#now-meta'),
+  metaTitle: $('#now-meta-title'),
+  metaSub: $('#now-meta-sub'),
 };
 
 const LS_KEY = 'wh:disabled';
@@ -193,10 +196,20 @@ function renderNow() {
 
 function updateMediaSession(s) {
   if (!('mediaSession' in navigator)) return;
-  const title = s.channel && s.channel !== 'main' ? `${s.station} · ${s.channel}` : s.station;
+  const stationLine = s.channel && s.channel !== 'main' ? `${s.station} · ${s.channel}` : s.station;
+  // If we have now-playing metadata for *this* station, push it to the lock screen.
+  // Title = show/track; Artist = subtitle (host/album) + station, so "what's on" is visible.
+  const meta = (np.data && np.stationId === s.id) ? np.data : null;
+  const title = meta && meta.title ? meta.title : stationLine;
+  let artist;
+  if (meta) {
+    artist = meta.subtitle ? `${meta.subtitle} — ${stationLine}` : stationLine;
+  } else {
+    artist = s.city || 'WaveHopper';
+  }
   navigator.mediaSession.metadata = new MediaMetadata({
     title,
-    artist: s.city || 'WaveHopper',
+    artist,
     album: 'WaveHopper',
     artwork: [
       { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
@@ -204,6 +217,101 @@ function updateMediaSession(s) {
     ],
   });
   navigator.mediaSession.playbackState = state.playing ? 'playing' : 'paused';
+}
+
+// === Now-playing metadata ===
+// Server: PHP dispatcher at /api/now-playing.php?id=<id>. Stations declare their
+// source via stations.json's `nowPlaying.type`. Polling runs only while we are
+// playing AND the page is visible — anything else is a battery/data waste.
+
+const NP_POLL_MS = 30000;
+const np = {
+  data: null,        // last successful payload from the dispatcher
+  stationId: null,   // station id that payload belongs to
+  ctrl: null,        // AbortController for the in-flight fetch
+  timer: 0,          // setTimeout id for the next poll
+};
+
+function clearNowMeta() {
+  np.data = null;
+  np.stationId = null;
+  els.meta.hidden = true;
+  els.metaTitle.textContent = '';
+  els.metaSub.textContent = '';
+}
+
+function stopNowPlayingPoll({ clearUi = false } = {}) {
+  if (np.ctrl) { try { np.ctrl.abort(); } catch {} np.ctrl = null; }
+  if (np.timer) { clearTimeout(np.timer); np.timer = 0; }
+  if (clearUi) clearNowMeta();
+}
+
+function hasServerSource(s) {
+  // 'none' = explicitly no source; 'hls-id3' = client-side via HLS frag metadata,
+  // not the PHP dispatcher. Both skip the polling path.
+  if (!s || !s.nowPlaying || !s.nowPlaying.type) return false;
+  const t = s.nowPlaying.type;
+  return t !== 'none' && t !== 'hls-id3';
+}
+
+function renderNowMeta(s, data) {
+  if (!data || !data.title) { clearNowMeta(); return; }
+  els.metaTitle.textContent = data.title;
+  let sub = data.subtitle || '';
+  if (!sub && data.ends) {
+    // No host/artist context — synthesize "until HH:MM" from the slot end time.
+    const t = new Date(data.ends);
+    if (!isNaN(t.getTime())) {
+      const hh = String(t.getHours()).padStart(2, '0');
+      const mm = String(t.getMinutes()).padStart(2, '0');
+      sub = `until ${hh}:${mm}`;
+    }
+  }
+  els.metaSub.textContent = sub;
+  els.meta.hidden = false;
+  updateMediaSession(s);
+}
+
+async function fetchNowPlayingOnce(s) {
+  if (!hasServerSource(s)) { clearNowMeta(); return; }
+  if (np.ctrl) { try { np.ctrl.abort(); } catch {} }
+  const ctrl = new AbortController();
+  np.ctrl = ctrl;
+  try {
+    const res = await fetch(`/api/now-playing.php?id=${encodeURIComponent(s.id)}`, {
+      signal: ctrl.signal,
+      cache: 'no-cache',
+    });
+    if (ctrl.signal.aborted) return;
+    // 204 = nothing playing or station has no source — wipe the card.
+    if (res.status === 204) { clearNowMeta(); np.stationId = s.id; return; }
+    if (!res.ok) return; // transient — keep whatever we already had
+    const data = await res.json();
+    if (ctrl.signal.aborted) return;
+    // Race guard: user may have switched stations while we were waiting.
+    if (state.stations[state.currentIndex] !== s) return;
+    np.data = data;
+    np.stationId = s.id;
+    renderNowMeta(s, data);
+  } catch (err) {
+    if (err && err.name === 'AbortError') return;
+    // Network blip — silently keep prior display.
+  } finally {
+    if (np.ctrl === ctrl) np.ctrl = null;
+  }
+}
+
+function startNowPlayingPoll(s) {
+  stopNowPlayingPoll();
+  if (!hasServerSource(s)) { clearNowMeta(); return; }
+  const tick = async () => {
+    await fetchNowPlayingOnce(s);
+    // Bail if the station changed under us, or polling was stopped.
+    if (state.stations[state.currentIndex] !== s) return;
+    if (!state.playing) return;
+    np.timer = setTimeout(tick, NP_POLL_MS);
+  };
+  tick();
 }
 
 function setupMediaSessionActions() {
@@ -368,6 +476,8 @@ async function selectAndPlay(index, { userInitiated = false } = {}) {
 
   // Reset stuck-time tracker — the next 'playing' event will rearm it.
   lastTimeAt = 0;
+  // New station: drop stale metadata + abort any in-flight fetch from the previous one.
+  stopNowPlayingPoll({ clearUi: true });
 
   setStatus('connecting…');
   renderNow();
@@ -381,6 +491,7 @@ async function selectAndPlay(index, { userInitiated = false } = {}) {
     state.playing = true;
     state.autoSkipChain = 0;
     setStatus('on air');
+    startNowPlayingPoll(s);
   } catch (err) {
     if (myEpoch !== state.epoch) return;
     if (err && err.name === 'AbortError') return;
@@ -433,8 +544,21 @@ function nextStation() {
 }
 
 audio.addEventListener('play', () => { state.playing = true; renderNow(); });
-audio.addEventListener('playing', () => { state.autoSkipChain = 0; setStatus('on air'); });
-audio.addEventListener('pause', () => { state.playing = false; renderNow(); if (state.mode === 'player') setStatus('paused'); });
+audio.addEventListener('playing', () => {
+  state.autoSkipChain = 0;
+  setStatus('on air');
+  // Resume polling if we were paused/backgrounded and just came back.
+  if (!np.timer && state.currentIndex >= 0) {
+    const s = state.stations[state.currentIndex];
+    if (s) startNowPlayingPoll(s);
+  }
+});
+audio.addEventListener('pause', () => {
+  state.playing = false;
+  stopNowPlayingPoll();
+  renderNow();
+  if (state.mode === 'player') setStatus('paused');
+});
 audio.addEventListener('waiting', () => { if (state.mode === 'player') setStatus('buffering…'); });
 audio.addEventListener('error', () => {
   if (state.hls) return;
@@ -521,7 +645,11 @@ setInterval(() => {
 }, 2000);
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState !== 'visible') return;
+  if (document.visibilityState !== 'visible') {
+    // Hidden: pause polling. Audio keeps going via the OS; metadata can wait.
+    stopNowPlayingPoll();
+    return;
+  }
   if (!state.playing) return;
   // Phone wake-up / long sleep can leave the audio element silently dead even when
   // not technically paused. Treat 'paused' OR 'currentTime stuck >5s' as stale.
@@ -530,6 +658,9 @@ document.addEventListener('visibilitychange', () => {
   } else if (isStuck(5000)) {
     reattachCurrent('reconnecting…');
   }
+  // Coming back foreground while playing: refresh metadata immediately.
+  const s = state.stations[state.currentIndex];
+  if (s) startNowPlayingPoll(s);
 });
 
 window.addEventListener('online', () => {

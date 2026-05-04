@@ -42,7 +42,10 @@
     "city": "London",
     "url": "https://stream-relay-geo.ntslive.net/stream",
     "format": "mp3",
-    "color": "#fff205"
+    "color": "#fff205",
+    "nowPlaying": {
+      "type": "nts"
+    }
   },
   {
     "id": "nts-2",
@@ -51,7 +54,10 @@
     "city": "London",
     "url": "https://stream-relay-geo.ntslive.net/stream2",
     "format": "mp3",
-    "color": "#fff205"
+    "color": "#fff205",
+    "nowPlaying": {
+      "type": "nts"
+    }
   },
   {
     "id": "nts-poolside",

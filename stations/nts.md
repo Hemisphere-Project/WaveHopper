@@ -59,5 +59,17 @@ The numbers are roughly chronological (launch order), not curated.
 - Mixed-content risk: none
 - Spot-checked: NTS 1, NTS 2, Poolside (mixtape4), Slow Focus (mixtape), Otaku (mixtape36)
 
+## Now-playing
+
+- Source: `https://www.nts.live/api/v2/live` — public, no auth, no CORS issue (server-side fetch only).
+- Returns both NTS 1 and NTS 2 in a single `results[]` array, each with `now`, `next`, `start_timestamp`, `end_timestamp`.
+- Mapping:
+  - `title` ← `now.broadcast_title` (e.g. "Joy Orbison")
+  - `subtitle` ← `now.embeds.details.name` if it differs from `title` (often the recurring slot name)
+  - `starts` / `ends` ← timestamps as-is (ISO 8601, UTC)
+  - `next.title` / `next.starts` echoed for "up next" affordance
+- Mixtapes: no per-track metadata exposed by NTS. Their `nowPlaying` is intentionally absent — the dispatcher returns 204 and the frontend hides the card.
+- Cache key is `nts` (shared across nts-1 / nts-2) so a single upstream fetch serves both channels. TTL 30s.
+
 ## Open questions
 - None.
