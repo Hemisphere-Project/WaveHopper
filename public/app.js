@@ -196,20 +196,20 @@ function renderNow() {
 
 function updateMediaSession(s) {
   if (!('mediaSession' in navigator)) return;
-  const stationLine = s.channel && s.channel !== 'main' ? `${s.station} · ${s.channel}` : s.station;
-  // If we have now-playing metadata for *this* station, push it to the lock screen.
-  // Title = show/track; Artist = subtitle (host/album) + station, so "what's on" is visible.
+  const stationName = s.channel && s.channel !== 'main' ? `${s.station} · ${s.channel}` : s.station;
   const meta = (np.data && np.stationId === s.id) ? np.data : null;
-  const title = meta && meta.title ? meta.title : stationLine;
-  let artist;
-  if (meta) {
-    artist = meta.subtitle ? `${meta.subtitle} — ${stationLine}` : stationLine;
+
+  // Artist = station name, always (prominent line on Android lock screen / notification).
+  // Title  = "Artist — Track" if metadata available, otherwise city fallback.
+  let title;
+  if (meta && meta.title) {
+    title = meta.subtitle ? `${meta.subtitle} — ${meta.title}` : meta.title;
   } else {
-    artist = s.city || 'WaveHopper';
+    title = s.city || 'WaveHopper';
   }
   navigator.mediaSession.metadata = new MediaMetadata({
     title,
-    artist,
+    artist: stationName,
     album: 'WaveHopper',
     artwork: [
       { src: '/img/favicon/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
