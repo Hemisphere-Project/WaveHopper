@@ -18,11 +18,11 @@ const SHELL = [
 ];
 // Optional assets — cached best-effort; a 404 won't block SW install.
 const OPTIONAL = [
-  '/icons/favicon/android-chrome-192x192.png',
-  '/icons/favicon/android-chrome-512x512.png',
-  '/icons/favicon/apple-touch-icon.png',
-  '/icons/favicon/favicon-32x32.png',
-  '/icons/favicon/favicon.ico',
+  '/img/favicon/android-chrome-192x192.png',
+  '/img/favicon/android-chrome-512x512.png',
+  '/img/favicon/apple-touch-icon.png',
+  '/img/favicon/favicon-32x32.png',
+  '/img/favicon/favicon.ico',
 ];
 const SHELL_SET = new Set([...SHELL, ...OPTIONAL]);
 

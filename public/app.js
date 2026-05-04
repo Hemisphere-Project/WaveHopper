@@ -212,8 +212,8 @@ function updateMediaSession(s) {
     artist,
     album: 'WaveHopper',
     artwork: [
-      { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+      { src: '/img/favicon/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
+      { src: '/img/favicon/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
     ],
   });
   navigator.mediaSession.playbackState = state.playing ? 'playing' : 'paused';
