@@ -46,6 +46,15 @@ Also visible in the bundle but not used:
 - Server: Icecast 2.4.0-kh15
 - icy-name: dublab, icy-description: "coming at you from LA"
 
+## Now-playing
+- **Source type:** `airtime`
+- **Endpoint:** `https://dublab.airtime.pro/api/live-info-v2`
+- **Mapping (auto-DJ / track mode):** `tracks.current.type = "track"` → `metadata.track_title` → `title`, `metadata.artist_name` → `subtitle`, `tracks.current.starts/ends` → `starts/ends` (20 s TTL).
+- **Mapping (live DJ / stream mode):** `tracks.current.type = "livestream"` → `shows.current.name` → `title`, no subtitle, `shows.current.starts/ends` → `starts/ends`, `shows.next[0]` → `next`.
+- **Cache key:** `airtime-dublab` (20 s TTL)
+- **Timezone:** `America/Los_Angeles` → converted to UTC ISO 8601 by the fetcher.
+- **Caveats:** Show names are HTML-entity-encoded with occasional leading whitespace — the fetcher normalises both. When auto-DJ is running, per-track timestamps are exact to the second; show-level `starts/ends` are only available as the show window, not the individual track.
+
 ## Open questions
 - Add dublab.de / dublab.es / dublab.jp / dublab.com.br as separate stations?
   They're independent operations broadcasting from Berlin, Barcelona, Tokyo,

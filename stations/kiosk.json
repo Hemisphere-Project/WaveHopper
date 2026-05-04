@@ -5,5 +5,9 @@
   "city": "Brussels",
   "url": "https://kioskradiobxl.out.airtime.pro/kioskradiobxl_b",
   "format": "aac",
-  "color": "#8a8a8a"
+  "color": "#8a8a8a",
+  "nowPlaying": {
+    "type": "airtime",
+    "endpoint": "https://kioskradiobxl.airtime.pro/api/live-info-v2"
+  }
 }

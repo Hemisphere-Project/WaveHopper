@@ -5,5 +5,9 @@
   "city": "Bristol",
   "url": "https://noods-radio.radiocult.fm/stream",
   "format": "mp3",
-  "color": "#00b3ff"
+  "color": "#00b3ff",
+  "nowPlaying": {
+    "type": "radiocult",
+    "slug": "noods-radio"
+  }
 }

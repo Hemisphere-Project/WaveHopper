@@ -39,6 +39,13 @@ content-type: application/vnd.apple.mpegurl
 access-control-allow-origin: *
 ```
 
+## Now-playing
+- **Source type:** `lyl-graphql`
+- **Endpoint:** `POST https://api.lyl.live/graphql` — query `{ calendar { startAt duration title artists } }`
+- **Mapping:** `artists` → `title` (show host), `title` → `subtitle` (show name), `startAt` (UTC ISO 8601) + parsed `duration` → `starts`/`ends`. Next entry in the list → `next.title`/`next.starts`.
+- **Cache key:** `lyl-graphql` (shared, 30 s TTL — show-level, full-day schedule per call)
+- **Caveats:** `calendar` returns ~23 entries covering today's broadcast day from ~01:00 UTC. The `onair` query also exists (`{ onair { title } }`) but only returns the combined `"Artist - Show"` string with no separate fields and no timestamps — `calendar` is strictly better. No timezone conversion needed: `startAt` is already UTC.
+
 ## Open questions
 
 - LYL also has a Paris studio per their meta description; unclear whether it broadcasts to a separate channel or shares the main feed. The GraphQL `onair` query exposes only one HLS field, so it's a single feed.

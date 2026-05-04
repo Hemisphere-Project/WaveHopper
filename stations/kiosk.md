@@ -24,6 +24,11 @@ but both returned HTTP 404. Only the Airtime Icecast stream is live.
 - Mixed-content risk: none
 
 ## Now-playing
-(filled in by /import-now-playing — source endpoint, mapping to title/subtitle/starts/ends, cache key, any caveats)
+- **Source type:** `airtime`
+- **Endpoint:** `https://kioskradiobxl.airtime.pro/api/live-info-v2`
+  - Also proxied via the site at `https://www.kioskradio.com/api/now-playing` (identical response)
+- **Mapping:** `shows.current.name` → `title` (HTML-decoded, trimmed); no subtitle. `shows.current.starts/ends` → `starts/ends` (converted from `station.timezone = Europe/Brussels` to UTC ISO 8601). `shows.next[0]` → `next.title/starts`.
+- **Cache key:** `airtime-kiosk` (30 s TTL — show-level data)
+- **Caveats:** Show names arrive HTML-entity-encoded (e.g. `&amp;`) with occasional leading whitespace — the fetcher normalises both. When a Live DJ is on air, `tracks.current.type = "livestream"` and `tracks.current.name` is empty; the show name from `shows.current` is the only usable metadata.
 
 ## Open questions

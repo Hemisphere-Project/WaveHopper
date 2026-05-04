@@ -6,7 +6,11 @@
     "city": "Los Angeles",
     "url": "https://dublab.out.airtime.pro/dublab_a",
     "format": "mp3",
-    "color": "#e62b1e"
+    "color": "#e62b1e",
+    "nowPlaying": {
+      "type": "airtime",
+      "endpoint": "https://dublab.airtime.pro/api/live-info-v2"
+    }
   },
   {
     "id": "thelot",
@@ -24,7 +28,11 @@
     "city": "Brussels",
     "url": "https://kioskradiobxl.out.airtime.pro/kioskradiobxl_b",
     "format": "aac",
-    "color": "#8a8a8a"
+    "color": "#8a8a8a",
+    "nowPlaying": {
+      "type": "airtime",
+      "endpoint": "https://kioskradiobxl.airtime.pro/api/live-info-v2"
+    }
   },
   {
     "id": "lyl",
@@ -33,7 +41,10 @@
     "city": "Lyon",
     "url": "https://radio.lyl.live/hls/live.m3u8",
     "format": "hls",
-    "color": "#e94e24"
+    "color": "#e94e24",
+    "nowPlaying": {
+      "type": "lyl-graphql"
+    }
   },
   {
     "id": "noods",
@@ -42,7 +53,11 @@
     "city": "Bristol",
     "url": "https://noods-radio.radiocult.fm/stream",
     "format": "mp3",
-    "color": "#00b3ff"
+    "color": "#00b3ff",
+    "nowPlaying": {
+      "type": "radiocult",
+      "slug": "noods-radio"
+    }
   },
   {
     "id": "nts-1",

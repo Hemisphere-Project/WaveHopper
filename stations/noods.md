@@ -38,6 +38,14 @@ icy-name: noods-radio
 access-control-allow-origin: *
 ```
 
+## Now-playing
+- **Source type:** `radiocult`
+- **Endpoint:** `GET https://api.radiocult.fm/api/station/noods-radio/schedule?startDate={now}&endDate={now+3h}`
+- **Response shape:** `{ "schedules": [{ startDateUtc, endDateUtc, title, artistIds, ... }] }` sorted by start time. All timestamps UTC ISO 8601.
+- **Mapping:** `schedules[current].title` → `title` (show name; host is usually embedded, e.g. "Strung Out w/ Izzy Twist"). `subtitle` → null (no separate host/artist field exposed publicly — `artistIds` are UUIDs, the `/artists/{id}` endpoint returns `{"success":false}`).
+- **Cache key:** `radiocult-noods` (30 s TTL — show-level, typically 1-hr slots)
+- **Caveats:** `slug` from `nowPlaying.slug` in station JSON (`noods-radio`) used to build the URL. The `status: "schedule"` field in the live endpoint shows the data is schedule-driven (pre-uploaded mixes). A `metadata` block with `artist: "Live Now"` is present but not useful.
+
 ## Open questions
 
 - None. Single channel, clean Icecast.

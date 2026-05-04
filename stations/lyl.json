@@ -5,5 +5,8 @@
   "city": "Lyon",
   "url": "https://radio.lyl.live/hls/live.m3u8",
   "format": "hls",
-  "color": "#e94e24"
+  "color": "#e94e24",
+  "nowPlaying": {
+    "type": "lyl-graphql"
+  }
 }

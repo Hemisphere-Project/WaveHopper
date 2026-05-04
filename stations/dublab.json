@@ -5,5 +5,9 @@
   "city": "Los Angeles",
   "url": "https://dublab.out.airtime.pro/dublab_a",
   "format": "mp3",
-  "color": "#e62b1e"
+  "color": "#e62b1e",
+  "nowPlaying": {
+    "type": "airtime",
+    "endpoint": "https://dublab.airtime.pro/api/live-info-v2"
+  }
 }
