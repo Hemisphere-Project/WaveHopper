@@ -43,6 +43,7 @@ body[data-skin="paper"] {
   --line: #c8bfa6;
   --accent-fg: #1c1a14;
 }
+body[data-skin="paper"] .row:hover { background: #e8dfc8; }
 
 /* === Fantasy: light unicorn / hyper-pop disney. Rounded corners, gradient title,
        pastel pink/lavender bg, Fredoka rounded font. */
@@ -284,23 +285,22 @@ h1 {
   flex-direction: column;
   gap: 2px;
 }
-.now-meta[hidden] { display: none; }
 .now-meta-title {
   font-size: 20px;
   color: var(--fg);
   word-break: break-word;
+  min-height: 1.15em;
 }
 .now-meta-sub {
   font-size: 16px;
   color: var(--dim);
-  min-height: 0;
   word-break: break-word;
+  min-height: 1.15em;
 }
 
 .controls {
   display: flex;
   gap: 10px;
-  margin-top: 10px;
 }
 
 .btn {
@@ -338,7 +338,6 @@ h1 {
   min-height: 1em;
   font-size: 18px;
   color: var(--dim);
-  margin-top: 4px;
 }
 .status.error { color: #ff4444; }
 
@@ -439,3 +438,77 @@ h1 {
   color: var(--accent);
 }
 .skin-btn:focus-visible { outline: none; }
+
+/* === About modal === */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 100;
+}
+.modal-backdrop[hidden] { display: none; }
+.modal {
+  background: var(--bg);
+  border: 3px solid var(--accent);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  max-width: 420px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.modal-title {
+  font-size: 28px;
+  color: var(--accent);
+  letter-spacing: 2px;
+}
+.modal-desc {
+  font-size: 20px;
+  color: var(--fg);
+  line-height: 1.4;
+}
+.modal-em {
+  color: var(--accent);
+}
+.modal-contact {
+  font-size: 18px;
+  color: var(--dim);
+  line-height: 1.4;
+}
+.modal-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+.modal-link:hover { text-decoration: underline; }
+.modal-footer {
+  font-size: 16px;
+  color: var(--dim);
+  border-top: 1px dashed var(--line);
+  padding-top: 10px;
+}
+
+body[data-skin="fantasy"] .modal { border-radius: 18px; }
+body[data-skin="fantasy"] .modal-title {
+  background: linear-gradient(90deg, #ff4f9a, #b04dff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 600;
+}
+body[data-skin="winamp"] .modal {
+  border-width: 2px;
+  border-color: #00e600;
+  box-shadow: none;
+}
+body[data-skin="paper"] .modal-backdrop { background: rgba(0, 0, 0, 0.5); }

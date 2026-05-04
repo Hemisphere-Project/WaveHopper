@@ -21,6 +21,10 @@ const els = {
   meta: $('#now-meta'),
   metaTitle: $('#now-meta-title'),
   metaSub: $('#now-meta-sub'),
+  aboutBtn: $('#about-btn'),
+  aboutModal: $('#about-modal'),
+  modalClose: $('#modal-close'),
+  modalFooter: $('#modal-footer'),
 };
 
 const LS_KEY = 'wh:disabled';
@@ -37,11 +41,12 @@ const SKIN_IDS = new Set(SKINS.map((s) => s.id));
 // Older builds wrote 'default' / 'green' / 'amber' here. Fold those into 'dark'.
 const SKIN_MIGRATIONS = { default: 'dark', green: 'dark', amber: 'dark', clippy: 'winamp' };
 
-// Bright 8-bit palette for the dark skin — cycles on each station change.
-// Excludes dark/grey tones to keep good contrast against the near-black background.
-const DARK_ACCENTS = [
-  '#ff5555', '#55ffff', '#ffff55', '#ff55ff', '#55ff55',
-  '#ff8800', '#ff0080', '#00ffe0', '#aa55ff', '#ffd700',
+// Bright 8-bit palette shared by Dark and Paper skins. Color is derived from
+// station position so each station always gets the same accent.
+// Excludes dark/grey tones to keep good contrast on both light and dark backgrounds.
+const STATION_ACCENTS = [
+  '#ff5555', '#55ccff', '#ffdd00', '#ff55ff', '#44dd44',
+  '#ff8800', '#ff0080', '#00ddcc', '#9955ff', '#ffaa00',
 ];
 
 const state = {
@@ -55,7 +60,6 @@ const state = {
   mode: 'player',        // 'player' | 'config'
   skin: 'dark',
   attachedId: null,      // station id whose stream is currently attached to <audio>
-  accentIdx: 0,          // current index into DARK_ACCENTS, advances per station change
 };
 
 // Track currentTime progression so we can detect a frozen audio element even when
@@ -132,18 +136,19 @@ function isMonoSkin() {
   const s = SKINS.find((x) => x.id === state.skin);
   return !!(s && s.mono);
 }
-function applyAccent(color) {
-  // Monochrome skins keep their fixed accent — let the skin's CSS variable win.
+function stationAccent() {
+  return STATION_ACCENTS[state.currentIndex % STATION_ACCENTS.length];
+}
+function applyAccent() {
+  // Monochrome skins keep their fixed CSS accent — clear any inline override.
   if (isMonoSkin()) {
     document.documentElement.style.removeProperty('--accent');
     return;
   }
-  // Dark skin uses a rotating 8-bit palette instead of per-station colors.
-  if (state.skin === 'dark') {
-    document.documentElement.style.setProperty('--accent', DARK_ACCENTS[state.accentIdx]);
-    return;
+  // Dark and Paper: accent derived from station position so it's stable and consistent.
+  if (state.currentIndex >= 0) {
+    document.documentElement.style.setProperty('--accent', stationAccent());
   }
-  if (color) document.documentElement.style.setProperty('--accent', color);
 }
 
 function loadSkin() {
@@ -169,8 +174,7 @@ function loadLastStation() {
 function applySkin() {
   document.body.dataset.skin = state.skin;
   // Re-evaluate accent: switching to/from mono skin must add or remove the inline override.
-  const s = state.stations[state.currentIndex];
-  applyAccent(s ? s.color : null);
+  applyAccent();
 }
 function setSkin(id) {
   if (!SKIN_IDS.has(id) || state.skin === id) return;
@@ -221,7 +225,7 @@ function renderNow() {
   els.nowChannel.textContent = s.channel === 'main' ? '' : s.channel;
   els.nowCity.textContent = s.city || '';
   els.play.textContent = state.playing ? PAUSE : PLAY;
-  applyAccent(s.color);
+  applyAccent();
   updateMediaSession(s);
 }
 
@@ -266,7 +270,6 @@ const np = {
 function clearNowMeta() {
   np.data = null;
   np.stationId = null;
-  els.meta.hidden = true;
   els.metaTitle.textContent = '';
   els.metaSub.textContent = '';
 }
@@ -299,7 +302,6 @@ function renderNowMeta(s, data) {
     }
   }
   els.metaSub.textContent = sub;
-  els.meta.hidden = false;
   updateMediaSession(s);
 }
 
@@ -503,9 +505,6 @@ async function selectAndPlay(index, { userInitiated = false } = {}) {
   if (index < 0 || index >= state.stations.length) return;
   if (userInitiated) state.autoSkipChain = 0;
   const myEpoch = ++state.epoch;
-  if (state.skin === 'dark' && index !== state.currentIndex) {
-    state.accentIdx = (state.accentIdx + 1) % DARK_ACCENTS.length;
-  }
   state.currentIndex = index;
   const s = state.stations[index];
 
@@ -619,6 +618,21 @@ els.play.addEventListener('click', togglePlay);
 els.next.addEventListener('click', nextStation);
 els.modeToggle.addEventListener('click', () => setMode(state.mode === 'config' ? 'player' : 'config'));
 els.share.addEventListener('click', shareApp);
+els.aboutBtn.addEventListener('click', openAbout);
+els.modalClose.addEventListener('click', closeAbout);
+els.aboutModal.addEventListener('click', (e) => { if (e.target === els.aboutModal) closeAbout(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAbout(); });
+
+function openAbout() {
+  const total = state.stations.length;
+  els.modalFooter.textContent = total
+    ? `${total} stations · ${enabledCount()} enabled`
+    : '';
+  els.aboutModal.hidden = false;
+}
+function closeAbout() {
+  els.aboutModal.hidden = true;
+}
 
 async function shareApp() {
   const url = location.origin + '/';

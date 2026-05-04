@@ -20,6 +20,7 @@
     <header class="bar">
       <h1>WAVEHOPPER</h1>
       <div class="bar-actions">
+        <button id="about-btn" class="icon-btn" aria-label="About" type="button">?</button>
         <button id="share" class="icon-btn" aria-label="Share" type="button">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="18" cy="5" r="3"></circle>
@@ -39,12 +40,12 @@
         <div class="now-city"></div>
       </div>
       <div class="now-channel"></div>
+      <div class="status" id="status"></div>
       <div class="controls">
         <button id="play" class="btn btn-primary" type="button" aria-label="Play">▶︎ PLAY</button>
         <button id="next" class="btn" type="button" aria-label="Next station">⏭︎ NEXT</button>
       </div>
-      <div class="status" id="status"></div>
-      <div class="now-meta" id="now-meta" hidden>
+      <div class="now-meta" id="now-meta">
         <div class="now-meta-title" id="now-meta-title"></div>
         <div class="now-meta-sub" id="now-meta-sub"></div>
       </div>
@@ -60,6 +61,23 @@
       <ul id="list" class="list"></ul>
     </section>
   </main>
+  <div id="about-modal" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="about-title">
+      <div class="modal-header">
+        <div id="about-title" class="modal-title">WAVEHOPPER</div>
+        <button id="modal-close" class="icon-btn" aria-label="Close" type="button">✕</button>
+      </div>
+      <div class="modal-desc">
+        A curated web radio player made to be simple, fast, and fun. Tune in, 
+        hop between stations using NEXT or SWIPE, and customise with SKINS.
+      </div>
+      <div class="modal-contact">
+        Got feedback, a feature idea, or something broken?<br>
+        Reach out at <a class="modal-link" href="mailto:thomas@hmsphr.com">thomas@hmsphr.com</a>
+      </div>
+      <div class="modal-footer" id="modal-footer"></div>
+    </div>
+  </div>
   <script type="module" src="/app.js"></script>
 </body>
 </html>
