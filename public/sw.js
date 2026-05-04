@@ -6,6 +6,7 @@
 //   playback continuity.
 
 const CACHE = 'wh-v2';
+// Critical shell — install fails if any of these are missing.
 const SHELL = [
   '/',
   '/index.html',
@@ -14,18 +15,23 @@ const SHELL = [
   '/vendor/vt323-latin.woff2',
   '/vendor/hls.light.min.js',
   '/manifest.webmanifest',
+];
+// Optional assets — cached best-effort; a 404 won't block SW install.
+const OPTIONAL = [
   '/icons/favicon/android-chrome-192x192.png',
   '/icons/favicon/android-chrome-512x512.png',
   '/icons/favicon/apple-touch-icon.png',
   '/icons/favicon/favicon-32x32.png',
   '/icons/favicon/favicon.ico',
 ];
-const SHELL_SET = new Set(SHELL);
+const SHELL_SET = new Set([...SHELL, ...OPTIONAL]);
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
     await cache.addAll(SHELL);
+    // Best-effort: don't let icon 404s abort the SW install.
+    await Promise.allSettled(OPTIONAL.map((url) => cache.add(url)));
   })());
   self.skipWaiting();
 });
