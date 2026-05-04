@@ -46,6 +46,7 @@ const state = {
   epoch: 0,
   mode: 'player',        // 'player' | 'config'
   skin: 'dark',
+  attachedId: null,      // station id whose stream is currently attached to <audio>
 };
 
 // Track currentTime progression so we can detect a frozen audio element even when
@@ -334,9 +335,7 @@ function startNowPlayingPoll(s) {
 function setupMediaSessionActions() {
   if (!('mediaSession' in navigator)) return;
   const safe = (fn) => () => { try { fn(); } catch {} };
-  navigator.mediaSession.setActionHandler('play', safe(() => {
-    audio.play().catch(() => {});
-  }));
+  navigator.mediaSession.setActionHandler('play', safe(userPlay));
   navigator.mediaSession.setActionHandler('pause', safe(() => audio.pause()));
   navigator.mediaSession.setActionHandler('nexttrack', safe(nextStation));
   navigator.mediaSession.setActionHandler('previoustrack', safe(() => {
@@ -443,6 +442,9 @@ function setMode(mode) {
 }
 
 async function attachStream(s, epoch) {
+  // Old attachment (if any) is being torn down — invalidate the marker now so a
+  // user tap during the async setup window doesn't think we're already attached.
+  state.attachedId = null;
   teardownHls();
   audio.removeAttribute('src');
   audio.load();
@@ -503,6 +505,7 @@ async function selectAndPlay(index, { userInitiated = false } = {}) {
   try {
     await attachStream(s, myEpoch);
     if (myEpoch !== state.epoch) return;
+    state.attachedId = s.id;
     await audio.play();
     if (myEpoch !== state.epoch) return;
     state.playing = true;
@@ -542,17 +545,28 @@ function autoSkipOnFailure(reason) {
   setTimeout(() => selectAndPlay(next, { userInitiated: false }), 600);
 }
 
-function togglePlay() {
+function userPlay() {
+  // Equivalent to "press PLAY" without the toggle behaviour. Used by the play
+  // button (when not playing) and by Media Session 'play' so the lock-screen
+  // play button works on a fresh load too.
   if (state.currentIndex < 0 || !isEnabled(state.stations[state.currentIndex])) {
     const first = nextEnabledFrom(-1);
     if (first >= 0) selectAndPlay(first, { userInitiated: true });
     return;
   }
-  if (state.playing) {
-    audio.pause();
-  } else {
-    audio.play().catch(() => setStatus('playback blocked', true));
+  const cur = state.stations[state.currentIndex];
+  if (state.attachedId !== cur.id) {
+    // No stream attached for this station (fresh load with last-station memory,
+    // or post-failure). Run the full attach + play path.
+    selectAndPlay(state.currentIndex, { userInitiated: true });
+    return;
   }
+  audio.play().catch(() => setStatus('playback blocked', true));
+}
+
+function togglePlay() {
+  if (state.playing) { audio.pause(); return; }
+  userPlay();
 }
 
 function nextStation() {
