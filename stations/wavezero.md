@@ -27,7 +27,50 @@ Backend is **AzuraCast** (open-source radio platform), hosted under `stream.onde
 - Mixed-content risk: none
 
 ## Now-playing
-(filled in by /import-now-playing — likely the AzuraCast SSE endpoint at `https://stream.ondezero.net/api/live/nowplaying/sse?cf_connect={"subs":{"station:oz":{"recover":true}}}`, or the simpler REST `https://stream.ondezero.net/api/nowplaying/oz`)
+
+- **Type:** `azuracast` (new fetcher)
+- **Endpoint:** `https://stream.ondezero.net/api/nowplaying/oz`
+- **Cache key:** `azuracast-wavezero` (per-station, 20 s TTL)
+
+The REST endpoint returns rich data — the SSE alternative was rejected because it needs a persistent connection that doesn't fit the file-cached PHP dispatcher model.
+
+### Mapping
+
+| Source field                                | Normalized field |
+|---------------------------------------------|------------------|
+| `now_playing.song.title`                    | `title`          |
+| `now_playing.song.artist`                   | `subtitle`       |
+| `now_playing.played_at` (Unix UTC seconds)  | `starts`         |
+| `now_playing.played_at + duration`          | `ends`           |
+| `playing_next.song.title`                   | `next.title`     |
+| `playing_next.cued_at`                      | `next.starts`    |
+
+When `live.is_live` is true a human DJ is on. The streamer name (`live.streamer_name`) becomes the title and the song title (if present) becomes the subtitle. When the auto-DJ has no `song.artist` (rare), the playlist tag is used as a soft fallback after stripping the `[CATEGORY] - ` prefix.
+
+`is_online: false` → fetcher returns null → dispatcher 204 → frontend hides the card.
+
+Sample observed payload (auto-DJ track mode):
+
+```
+song.title  = "Another genocide behind walls"
+song.artist = "Pierre Loiselle, Nora Barrows-Friedman, Tamara Nassar"
+song.album  = "Electronic Intifada Radio"
+playlist    = "[SHOW] - Electronic Intifada - Radio"
+played_at   = 1777896006   (Unix UTC, no tz conversion needed)
+duration    = 3480
+elapsed     = 2545, remaining = 935
+```
+
+### Verification
+
+```sh
+curl -sS https://stream.ondezero.net/api/nowplaying/oz | jq '{
+  online: .is_online,
+  song: .now_playing.song.title,
+  artist: .now_playing.song.artist,
+  starts: (.now_playing.played_at | todate)
+}'
+```
 
 ## Open questions
 - Is the project still on-air outside flotilla periods? Schedule blob in `config.js` shows live programming through May 2026.

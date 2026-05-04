@@ -66,7 +66,11 @@
     "city": "Mediterranean",
     "url": "https://stream.ondezero.net/listen/oz/radio.mp3",
     "format": "mp3",
-    "color": "#e63946"
+    "color": "#e63946",
+    "nowPlaying": {
+      "type": "azuracast",
+      "endpoint": "https://stream.ondezero.net/api/nowplaying/oz"
+    }
   },
   {
     "id": "nts-1",
