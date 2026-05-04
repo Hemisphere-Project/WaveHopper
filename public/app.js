@@ -173,7 +173,7 @@ function teardownHls() {
 // Symbols with emoji presentation defaults on Apple platforms — append U+FE0E
 // (variation selector-15) to force the text-style glyph instead of color emoji.
 const PLAY  = '▶︎ PLAY';
-const PAUSE = '⏸︎ PAUSE';
+const PAUSE = '▮▮ PAUSE';
 const GEAR  = '⚙︎';
 const CHECK = '✓';
 
