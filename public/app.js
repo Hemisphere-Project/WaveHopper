@@ -167,19 +167,26 @@ function teardownHls() {
   }
 }
 
+// Symbols with emoji presentation defaults on Apple platforms — append U+FE0E
+// (variation selector-15) to force the text-style glyph instead of color emoji.
+const PLAY  = '▶︎ PLAY';
+const PAUSE = '⏸︎ PAUSE';
+const GEAR  = '⚙︎';
+const CHECK = '✓';
+
 function renderNow() {
   const s = state.stations[state.currentIndex];
   if (!s) {
     els.nowStation.textContent = '—';
     els.nowChannel.textContent = '';
     els.nowCity.textContent = '';
-    els.play.textContent = '▶ PLAY';
+    els.play.textContent = PLAY;
     return;
   }
   els.nowStation.textContent = s.station;
   els.nowChannel.textContent = s.channel === 'main' ? '' : s.channel;
   els.nowCity.textContent = s.city || '';
-  els.play.textContent = state.playing ? '⏸ PAUSE' : '▶ PLAY';
+  els.play.textContent = state.playing ? PAUSE : PLAY;
   applyAccent(s.color);
   updateMediaSession(s);
 }
@@ -272,7 +279,7 @@ function renderList() {
   if (state.mode === 'player' && items.length === 0) {
     const li = document.createElement('li');
     li.className = 'row empty';
-    li.textContent = 'no stations enabled — tap ⚙ to add some';
+    li.textContent = `no stations enabled — tap ${GEAR} to add some`;
     els.list.appendChild(li);
   }
 }
@@ -299,7 +306,7 @@ function setMode(mode) {
   state.mode = mode;
   document.body.classList.toggle('config-mode', mode === 'config');
   els.title.textContent = mode === 'config' ? 'CONFIG' : 'WAVEHOPPER';
-  els.modeToggle.textContent = mode === 'config' ? '✓' : '⚙';
+  els.modeToggle.textContent = mode === 'config' ? CHECK : GEAR;
   els.modeToggle.setAttribute('aria-label', mode === 'config' ? 'Done' : 'Settings');
   els.listLabel.textContent = mode === 'config' ? 'ENABLE / DISABLE' : 'STATIONS';
   if (mode === 'config') {

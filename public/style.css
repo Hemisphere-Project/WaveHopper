@@ -101,6 +101,8 @@ h1 {
   height: 44px;
   cursor: pointer;
   padding: 0;
+  /* Safari defaults to emoji presentation for ▶ ⏸ ⏭ ⚙; force text style. */
+  font-variant-emoji: text;
 }
 .icon-btn:hover, .icon-btn:focus-visible {
   border-color: var(--accent);
@@ -155,6 +157,7 @@ h1 {
   cursor: pointer;
   box-shadow: 4px 4px 0 0 var(--fg);
   transition: transform 60ms linear, box-shadow 60ms linear;
+  font-variant-emoji: text;
 }
 .btn:active {
   transform: translate(4px, 4px);
