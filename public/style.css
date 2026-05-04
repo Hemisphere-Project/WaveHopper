@@ -66,6 +66,7 @@ body[data-skin="fantasy"] h1 {
   background-clip: text;
   color: transparent;
   font-weight: 600;
+  font-size: 22px;
   letter-spacing: 0;
 }
 body[data-skin="fantasy"] .now,
@@ -104,7 +105,7 @@ body[data-skin="winamp"] .bar {
   padding: 6px 8px;
 }
 body[data-skin="winamp"] h1 {
-  color: #00e600;
+  color: var(--dim);
   letter-spacing: 4px;
 }
 body[data-skin="winamp"] .icon-btn {
@@ -214,7 +215,7 @@ h1 {
   margin: 0;
   font-size: 32px;
   letter-spacing: 2px;
-  color: var(--accent);
+  color: var(--dim);
 }
 
 .icon-btn {
