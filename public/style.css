@@ -121,11 +121,19 @@ h1 {
     linear-gradient(var(--bg), var(--bg)) padding-box;
 }
 
+.now-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
 .now-station {
   font-size: 36px;
   color: var(--accent);
   letter-spacing: 1px;
   word-break: break-word;
+  flex: 1;
+  min-width: 0;
 }
 .now-channel {
   font-size: 24px;
@@ -135,7 +143,8 @@ h1 {
 .now-city {
   font-size: 18px;
   color: var(--dim);
-  min-height: 1em;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .now-meta {
@@ -172,7 +181,7 @@ h1 {
   border: 3px solid var(--fg);
   font-family: inherit;
   font-size: 22px;
-  letter-spacing: 1px;
+  letter-spacing: 0;
   padding: 12px 14px;
   min-height: 52px;
   cursor: pointer;
