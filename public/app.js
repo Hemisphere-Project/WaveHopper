@@ -590,6 +590,7 @@ audio.addEventListener('pause', () => {
   stopNowPlayingPoll();
   renderNow();
   if (state.mode === 'player') setStatus('paused');
+  if (swPendingReload) maybeReloadForSW();
 });
 audio.addEventListener('waiting', () => { if (state.mode === 'player') setStatus('buffering…'); });
 audio.addEventListener('error', () => {
@@ -704,15 +705,54 @@ window.addEventListener('offline', () => {
   if (state.currentIndex >= 0) setStatus('offline — waiting for network', true);
 });
 
+// === Service worker registration + auto-update ===
+// On a fresh deploy: the browser fetches the new sw.js, installs it (which
+// pre-caches the new shell), then waits. We tell it to skipWaiting so the new
+// SW activates and claims this page. controllerchange fires, and we reload —
+// but only if not playing, since reload kills mid-stream audio. If playing, we
+// flag a pending reload and trigger it the next time the user pauses.
+let swPendingReload = false;
+
+function maybeReloadForSW() {
+  if (sessionStorage.getItem('wh:reloaded-for-sw')) return;
+  sessionStorage.setItem('wh:reloaded-for-sw', '1');
+  location.reload();
+}
+
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register('/sw.js').then((reg) => {
+    // A waiting SW already present at registration time (race on first paint).
+    if (reg.waiting) reg.waiting.postMessage('skipWaiting');
+    reg.addEventListener('updatefound', () => {
+      const next = reg.installing;
+      if (!next) return;
+      next.addEventListener('statechange', () => {
+        if (next.state === 'installed' && navigator.serviceWorker.controller) {
+          // New version ready and an old SW is currently in control — trigger handoff.
+          next.postMessage('skipWaiting');
+        }
+      });
+    });
+  }).catch(() => {});
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (state.playing) {
+      swPendingReload = true;
+      setStatus('update ready — pause to reload');
+    } else {
+      maybeReloadForSW();
+    }
+  });
+}
+
 async function init() {
   loadSkin();
   applySkin();
   renderSkinRow();
   const hadSavedDisabled = loadDisabled();
   setupMediaSessionActions();
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
-  }
+  registerServiceWorker();
   try {
     const res = await fetch('/stations.json', { cache: 'no-cache' });
     state.stations = await res.json();
