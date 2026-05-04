@@ -11,13 +11,24 @@ const els = {
   modeToggle: $('#mode-toggle'),
   title: $('.bar h1'),
   listLabel: $('.list-label'),
+  now: $('#now'),
   nowStation: $('.now-station'),
   nowChannel: $('.now-channel'),
   nowCity: $('.now-city'),
   controls: $('.controls'),
+  skinRow: $('#skin-row'),
 };
 
 const LS_KEY = 'wh:disabled';
+const LS_SKIN = 'wh:skin';
+
+const SKINS = [
+  { id: 'default', label: 'Default', mono: false },
+  { id: 'green',   label: 'Green',   mono: true  },
+  { id: 'amber',   label: 'Amber',   mono: true  },
+  { id: 'paper',   label: 'Paper',   mono: false },
+];
+const SKIN_IDS = new Set(SKINS.map((s) => s.id));
 
 const state = {
   stations: [],
@@ -28,7 +39,14 @@ const state = {
   autoSkipChain: 0,
   epoch: 0,
   mode: 'player',        // 'player' | 'config'
+  skin: 'default',
 };
+
+// Track currentTime progression so we can detect a frozen audio element even when
+// `audio.paused` lies (Safari, post-sleep). Declared up here to dodge TDZ — the
+// stuck-time watcher resets these inside selectAndPlay, defined before them.
+let lastTime = 0;
+let lastTimeAt = 0;
 
 const audio = new Audio();
 audio.preload = 'none';
@@ -94,8 +112,52 @@ function setStatus(text, isError = false) {
   els.status.classList.toggle('error', !!isError);
 }
 
+function isMonoSkin() {
+  const s = SKINS.find((x) => x.id === state.skin);
+  return !!(s && s.mono);
+}
 function applyAccent(color) {
+  // Monochrome skins (green/amber phosphor) keep their fixed accent — let the skin's
+  // CSS variable win by clearing any inline override JS may have set previously.
+  if (isMonoSkin()) {
+    document.documentElement.style.removeProperty('--accent');
+    return;
+  }
   if (color) document.documentElement.style.setProperty('--accent', color);
+}
+
+function loadSkin() {
+  try {
+    const raw = localStorage.getItem(LS_SKIN);
+    if (raw && SKIN_IDS.has(raw)) state.skin = raw;
+  } catch {}
+}
+function applySkin() {
+  document.body.dataset.skin = state.skin;
+  // Re-evaluate accent: switching to/from mono skin must add or remove the inline override.
+  const s = state.stations[state.currentIndex];
+  applyAccent(s ? s.color : null);
+}
+function setSkin(id) {
+  if (!SKIN_IDS.has(id) || state.skin === id) return;
+  state.skin = id;
+  try { localStorage.setItem(LS_SKIN, id); } catch {}
+  applySkin();
+  renderSkinRow();
+}
+function renderSkinRow() {
+  if (!els.skinRow) return;
+  els.skinRow.innerHTML = '';
+  for (const s of SKINS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'skin-btn';
+    b.textContent = s.label;
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-pressed', state.skin === s.id ? 'true' : 'false');
+    b.addEventListener('click', () => setSkin(s.id));
+    els.skinRow.appendChild(b);
+  }
 }
 
 function teardownHls() {
@@ -268,9 +330,21 @@ async function attachStream(s, epoch) {
     if (epoch !== state.epoch) return;
     hls.loadSource(s.url);
 
+    // Soft-recovery: on fatal NETWORK_ERROR try startLoad() once, on fatal MEDIA_ERROR
+    // try recoverMediaError() once, before declaring the station off-air. Avoids
+    // skipping when the upstream just hiccuped.
+    let netRecovered = false, mediaRecovered = false;
     hls.on(Hls.Events.ERROR, (_evt, data) => {
       if (epoch !== state.epoch) return;
       if (!data.fatal) return;
+      if (data.type === Hls.ErrorTypes.NETWORK_ERROR && !netRecovered) {
+        netRecovered = true;
+        try { hls.startLoad(); return; } catch {}
+      }
+      if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !mediaRecovered) {
+        mediaRecovered = true;
+        try { hls.recoverMediaError(); return; } catch {}
+      }
       autoSkipOnFailure('off air');
     });
   } else {
@@ -284,6 +358,9 @@ async function selectAndPlay(index, { userInitiated = false } = {}) {
   const myEpoch = ++state.epoch;
   state.currentIndex = index;
   const s = state.stations[index];
+
+  // Reset stuck-time tracker — the next 'playing' event will rearm it.
+  lastTimeAt = 0;
 
   setStatus('connecting…');
   renderNow();
@@ -362,6 +439,43 @@ els.play.addEventListener('click', togglePlay);
 els.next.addEventListener('click', nextStation);
 els.modeToggle.addEventListener('click', () => setMode(state.mode === 'config' ? 'player' : 'config'));
 
+// Swipe-left on the now-playing card → NEXT. Touch only — desktop has the button.
+(function attachSwipe() {
+  if (!els.now) return;
+  let startX = 0, startY = 0, tracking = false, dragX = 0;
+  const RESET = 'translateX(0)';
+
+  els.now.addEventListener('touchstart', (e) => {
+    if (state.mode !== 'player') return;
+    if (e.touches.length !== 1) { tracking = false; return; }
+    const t = e.touches[0];
+    startX = t.clientX; startY = t.clientY; dragX = 0; tracking = true;
+    els.now.style.transition = 'none';
+  }, { passive: true });
+
+  els.now.addEventListener('touchmove', (e) => {
+    if (!tracking) return;
+    const t = e.touches[0];
+    const dx = t.clientX - startX;
+    const dy = t.clientY - startY;
+    // Vertical-dominant motion is a scroll attempt, not a swipe — bail.
+    if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) { tracking = false; els.now.style.transform = RESET; return; }
+    // Visual nudge only on left drag, capped.
+    dragX = Math.max(-80, Math.min(0, dx));
+    els.now.style.transform = `translateX(${dragX}px)`;
+  }, { passive: true });
+
+  function end() {
+    if (!tracking) return;
+    tracking = false;
+    els.now.style.transition = 'transform 140ms ease-out';
+    els.now.style.transform = RESET;
+    if (dragX <= -55) nextStation();
+  }
+  els.now.addEventListener('touchend', end);
+  els.now.addEventListener('touchcancel', end);
+})();
+
 // === Background / network hardening ===
 // We never pause on visibility change — the OS handles backgrounding.
 // We only react when coming back foreground or back online.
@@ -375,18 +489,45 @@ function reattachCurrent(reason) {
     .finally(() => { reattaching = false; });
 }
 
+audio.addEventListener('timeupdate', () => {
+  if (audio.currentTime !== lastTime) {
+    lastTime = audio.currentTime;
+    lastTimeAt = Date.now();
+  }
+});
+audio.addEventListener('playing', () => { lastTime = audio.currentTime; lastTimeAt = Date.now(); });
+
+function isStuck(thresholdMs) {
+  // Fresh attachment: no timeupdate yet — give it room.
+  if (lastTimeAt === 0) return false;
+  return Date.now() - lastTimeAt > thresholdMs;
+}
+
+// Stuck-time watcher: if we think we're playing but currentTime hasn't advanced for
+// 8s, the connection has died silently (common on mobile after a NAT/wifi blip).
+// Reattach without skipping stations.
+setInterval(() => {
+  if (!state.playing || reattaching) return;
+  if (document.visibilityState === 'hidden') return; // OS may legitimately throttle
+  if (audio.paused) return; // pause path is handled elsewhere
+  if (isStuck(8000)) reattachCurrent('reconnecting…');
+}, 2000);
+
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
-  if (state.playing && audio.paused) {
-    // Tab came back foreground with the element frozen — try to resume in place,
-    // and if that fails (stale connection), reattach the stream.
+  if (!state.playing) return;
+  // Phone wake-up / long sleep can leave the audio element silently dead even when
+  // not technically paused. Treat 'paused' OR 'currentTime stuck >5s' as stale.
+  if (audio.paused) {
     audio.play().catch(() => reattachCurrent('reconnecting…'));
+  } else if (isStuck(5000)) {
+    reattachCurrent('reconnecting…');
   }
 });
 
 window.addEventListener('online', () => {
   if (state.currentIndex < 0) return;
-  if (audio.paused && state.playing) reattachCurrent('reconnecting…');
+  if (state.playing && (audio.paused || isStuck(3000))) reattachCurrent('reconnecting…');
 });
 
 window.addEventListener('offline', () => {
@@ -394,6 +535,9 @@ window.addEventListener('offline', () => {
 });
 
 async function init() {
+  loadSkin();
+  applySkin();
+  renderSkinRow();
   const hadSavedDisabled = loadDisabled();
   setupMediaSessionActions();
   if ('serviceWorker' in navigator) {

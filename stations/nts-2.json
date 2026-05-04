@@ -1,0 +1,9 @@
+{
+  "id": "nts-2",
+  "station": "NTS",
+  "channel": "2",
+  "city": "London",
+  "url": "https://stream-relay-geo.ntslive.net/stream2",
+  "format": "mp3",
+  "color": "#fff205"
+}

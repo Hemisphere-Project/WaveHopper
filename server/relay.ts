@@ -1,13 +1,16 @@
-// WaveHopper dev server — static files from ../public + stations.json from repo root.
-// In production, nginx serves the same paths. No stream proxying: every station's
-// upstream is HTTPS with permissive CORS, so the browser plays them directly.
+// WaveHopper dev server — static files from ../public + stations.json built on the fly
+// from per-station JSON files in ../stations. In production, nginx serves the static
+// stations.json produced by `bun run build:stations`. No stream proxying: every
+// station's upstream is HTTPS with permissive CORS, so the browser plays them directly.
 
 import { file } from 'bun';
 import { join, normalize } from 'node:path';
+import { buildStationList } from './stations.ts';
 
 const PORT = Number(Bun.env.PORT ?? 3000);
 const ROOT = new URL('..', import.meta.url).pathname;
 const PUBLIC = join(ROOT, 'public');
+const STATIONS = join(ROOT, 'stations');
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -44,9 +47,17 @@ Bun.serve({
     if (path === '/') path = '/index.html';
 
     if (path === '/stations.json') {
-      return serveFile(join(ROOT, 'stations.json'), {
-        'Cache-Control': 'no-cache',
-      });
+      try {
+        const list = await buildStationList(STATIONS);
+        return new Response(JSON.stringify(list), {
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Cache-Control': 'no-cache',
+          },
+        });
+      } catch (err) {
+        return new Response(`stations build failed: ${err}`, { status: 500 });
+      }
     }
 
     const safe = normalize(path).replace(/^(\.\.[/\\])+/, '');

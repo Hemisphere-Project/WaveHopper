@@ -1,6 +1,6 @@
 ---
 name: import-station
-description: Extract and verify the live audio stream URL for a single webradio station, then update its station MD and stations.json. Use when the user asks to import, add, refresh, or re-check a WaveHopper station. Argument is the station id (e.g. /import-station nts).
+description: Extract and verify the live audio stream URL for a single webradio station, then update its station MD and per-station JSON. Use when the user asks to import, add, refresh, or re-check a WaveHopper station. Argument is the station id (e.g. /import-station nts).
 ---
 
 # Import Station
@@ -52,7 +52,7 @@ Always set `last_checked:` to today's ISO date when you touch a station.
    - Fill the Verification block (format, scheme, CORS, mixed-content risk)
    - In Extraction notes, write *where* the URL was hidden — this is the durable lesson
    - Bump status (`extracted` after step 6, `verified` once curl is clean)
-8. **Append to `stations.json`** (only if verified). Schema, one entry per channel:
+8. **Write `stations/<id>.json`** (only if verified), one file per channel. Schema:
    ```json
    {
      "id": "nts-1",
@@ -64,7 +64,7 @@ Always set `last_checked:` to today's ISO date when you touch a station.
      "color": "#ff0000"
    }
    ```
-   After the JSON edit, set status to `added`.
+   Then add the new id to `stations/_order.json` at the position where it should appear in the UI list (preserve existing order — usually append, or group with sibling channels). After writing, set the MD status to `added` and run `bun run build:stations` to regenerate the static `stations.json` (committed alongside).
 9. **Update the "Patterns we've seen" section below** with anything new and reusable. This is how the skill gets sharper.
 
 ## Patterns we've seen
@@ -103,5 +103,5 @@ A short summary: station id, channels found, URLs (truncated), new status, and o
 ## Out of scope
 
 - Do not bulk-research multiple stations in one invocation.
-- Do not write frontend or relay code from this skill — only the station MD and `stations.json`.
+- Do not write frontend or relay code from this skill — only the station MD, the per-station `stations/<id>.json`, and `stations/_order.json` (plus the regenerated `stations.json`).
 - Do not invent channels the user didn't ask for; if you discover extra channels on a station, list them as candidates and ask before adding.

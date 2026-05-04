@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "bun run --hot server/relay.ts",
-    "start": "bun run server/relay.ts"
+    "start": "bun run server/relay.ts",
+    "build:stations": "bun run server/build-stations.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"

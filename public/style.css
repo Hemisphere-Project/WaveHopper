@@ -19,6 +19,33 @@
   --shadow: 4px 4px 0 0 var(--line);
 }
 
+/* Skins override the base palette. Station accent is set inline by JS on :root;
+   monochrome skins (green/amber) signal via .skin-mono so JS skips overriding
+   the accent — keeping CRT vibes intact. */
+body[data-skin="green"] {
+  --bg: #001a05;
+  --fg: #4cff7a;
+  --dim: #1f7a3a;
+  --line: #0e3a1c;
+  --accent: #4cff7a;
+  --accent-fg: #001a05;
+}
+body[data-skin="amber"] {
+  --bg: #1a0f00;
+  --fg: #ffb347;
+  --dim: #8a5a1f;
+  --line: #3d2a0f;
+  --accent: #ffb347;
+  --accent-fg: #1a0f00;
+}
+body[data-skin="paper"] {
+  --bg: #f4ecd8;
+  --fg: #1c1a14;
+  --dim: #7a7363;
+  --line: #c8bfa6;
+  --accent-fg: #1c1a14;
+}
+
 * { box-sizing: border-box; }
 
 html, body {
@@ -220,3 +247,33 @@ h1 {
 }
 
 .config-mode .controls { opacity: 0.4; pointer-events: none; }
+
+.skin-section {
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+}
+.config-mode .skin-section { display: flex; }
+.skin-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.skin-btn {
+  flex: 1 1 0;
+  min-width: 64px;
+  background: var(--bg);
+  color: var(--fg);
+  border: 2px solid var(--line);
+  font-family: inherit;
+  font-size: 16px;
+  letter-spacing: 1px;
+  padding: 10px 8px;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+.skin-btn[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.skin-btn:focus-visible { outline: none; }

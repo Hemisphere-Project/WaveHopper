@@ -1,0 +1,10 @@
+{
+  "id": "nts-labyrinth",
+  "station": "NTS",
+  "channel": "Labyrinth",
+  "city": "London",
+  "url": "https://stream-mixtape-geo.ntslive.net/mixtape31",
+  "format": "mp3",
+  "color": "#fff205",
+  "defaultDisabled": true
+}
