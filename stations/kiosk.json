@@ -1,0 +1,9 @@
+{
+  "id": "kiosk",
+  "station": "Kiosk Radio",
+  "channel": "",
+  "city": "Brussels",
+  "url": "https://kioskradiobxl.out.airtime.pro/kioskradiobxl_b",
+  "format": "aac",
+  "color": "#161616"
+}
