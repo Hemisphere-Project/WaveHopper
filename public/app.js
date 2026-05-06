@@ -68,9 +68,16 @@ const state = {
 let lastTime = 0;
 let lastTimeAt = 0;
 
-const audio = new Audio();
+// <video> instead of <audio> so hls.js can open a video/mp4 source buffer for
+// HLS streams that carry a video track (e.g. Livepeer broadcasts). The media
+// element API is identical — all existing event listeners and MediaSession calls
+// work unchanged. Must be in the DOM for MSE to initialise on all browsers.
+const audio = document.createElement('video');
 audio.preload = 'none';
 audio.setAttribute('playsinline', '');
+audio.setAttribute('aria-hidden', 'true');
+audio.style.cssText = 'position:fixed;width:0;height:0;opacity:0;pointer-events:none';
+document.body.appendChild(audio);
 
 let hlsLoader = null;
 function loadHlsLib() {

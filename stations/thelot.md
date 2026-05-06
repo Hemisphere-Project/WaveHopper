@@ -3,7 +3,7 @@ id: thelot
 name: The Lot Radio
 site: https://www.thelotradio.com/
 status: added
-last_checked: 2026-05-03
+last_checked: 2026-05-06
 ---
 
 ## Channels
