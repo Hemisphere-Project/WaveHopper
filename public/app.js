@@ -1,7 +1,7 @@
 // WaveHopper — frontend entry.
 // Steps 1-4: shell, MP3+HLS playback with auto-skip, config mode + localStorage.
 
-const APP_VERSION = '20260506c';
+const APP_VERSION = '20260506d';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -10,7 +10,6 @@ const els = {
   play: $('#play'),
   next: $('#next'),
   status: $('#status'),
-  statusDebug: $('#status-debug'),
   modeToggle: $('#mode-toggle'),
   share: $('#share'),
   title: $('.bar h1'),
@@ -64,7 +63,6 @@ const state = {
   skin: 'dark',
   attachedId: null,      // station id whose stream is currently attached to <audio>
   streamPath: '',
-  lastPlaybackDebug: '',
 };
 
 // Track currentTime progression so we can detect a frozen audio element even when
@@ -143,50 +141,6 @@ function nextEnabledFrom(idx) {
 function setStatus(text, isError = false) {
   els.status.textContent = text;
   els.status.classList.toggle('error', !!isError);
-}
-
-function setStatusDebug(text) {
-  const detail = text || '';
-  if (!els.statusDebug) return;
-  els.statusDebug.textContent = detail;
-  els.statusDebug.hidden = !detail;
-}
-
-function currentStationId() {
-  const station = state.stations[state.currentIndex];
-  return station ? station.id : 'unknown';
-}
-
-function describeMediaError(err) {
-  if (!err) return 'unknown';
-  const codeMap = {
-    1: 'aborted',
-    2: 'network',
-    3: 'decode',
-    4: 'src-not-supported',
-  };
-  return codeMap[err.code] || `code-${err.code || 'unknown'}`;
-}
-
-function formatHlsErrorDetail(data) {
-  const detail = [state.streamPath || 'hls.js'];
-  if (data.type) detail.push(data.type);
-  if (data.details) detail.push(data.details);
-  if (data.response && data.response.code) detail.push(`http-${data.response.code}`);
-  if (data.frag && Number.isFinite(data.frag.sn)) detail.push(`sn-${data.frag.sn}`);
-  return detail.join(' · ');
-}
-
-function reportPlaybackDebug(detail, extra = null) {
-  const stationId = currentStationId();
-  state.lastPlaybackDebug = detail;
-  const message = `${stationId} · ${detail}`;
-  setStatusDebug(message);
-  if (extra) {
-    console.warn('[WaveHopper playback]', { stationId, detail, extra });
-    return;
-  }
-  console.warn('[WaveHopper playback]', { stationId, detail });
 }
 
 function isMonoSkin() {
@@ -555,11 +509,10 @@ async function attachStream(s, epoch) {
       // Soft-recovery: on fatal NETWORK_ERROR try startLoad() once, on fatal MEDIA_ERROR
       // try recoverMediaError() once, before declaring the station off-air. Avoids
       // skipping when the upstream just hiccuped.
-      let netRecovered = false, mediaRecovered = false;
+      let mediaRecovered = false;
       hls.on(Hls.Events.ERROR, (_evt, data) => {
         if (epoch !== state.epoch) return;
         if (!data.fatal) return;
-        reportPlaybackDebug(formatHlsErrorDetail(data), data);
         if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !mediaRecovered) {
           mediaRecovered = true;
           try { hls.recoverMediaError(); return; } catch {}
@@ -586,7 +539,6 @@ async function selectAndPlay(index, { userInitiated = false } = {}) {
   if (userInitiated) state.autoSkipChain = 0;
   const myEpoch = ++state.epoch;
   state.currentIndex = index;
-  state.lastPlaybackDebug = '';
   const s = state.stations[index];
 
   // Reset stuck-time tracker — the next 'playing' event will rearm it.
@@ -606,8 +558,6 @@ async function selectAndPlay(index, { userInitiated = false } = {}) {
     if (myEpoch !== state.epoch) return;
     state.playing = true;
     state.autoSkipChain = 0;
-    state.lastPlaybackDebug = '';
-    setStatusDebug('');
     setStatus('on air');
     saveLastStation(s.id);
     startNowPlayingPoll(s);
@@ -622,7 +572,6 @@ async function selectAndPlay(index, { userInitiated = false } = {}) {
       // autoSkipOnFailure — play() rejection here is a secondary consequence.
       // Don't fire again or the skip chain increments twice.
     } else {
-      reportPlaybackDebug(`${state.streamPath || 'direct'} · play() ${err && err.name ? err.name : 'error'}`, err);
       autoSkipOnFailure('stream error');
     }
   }
@@ -631,11 +580,9 @@ async function selectAndPlay(index, { userInitiated = false } = {}) {
 
 function autoSkipOnFailure(reason) {
   state.autoSkipChain += 1;
-  const detail = state.lastPlaybackDebug;
   const cap = Math.max(1, enabledCount());
   if (state.autoSkipChain >= cap) {
-    const final = detail ? `no stations on air (${detail})` : 'no stations on air';
-    setStatus(final, true);
+    setStatus('no stations on air', true);
     state.playing = false;
     teardownHls();
     renderNow();
@@ -643,12 +590,10 @@ function autoSkipOnFailure(reason) {
   }
   const next = nextEnabledFrom(state.currentIndex);
   if (next < 0) {
-    const final = detail ? `no stations on air (${detail})` : 'no stations on air';
-    setStatus(final, true);
+    setStatus('no stations on air', true);
     return;
   }
-  const label = detail ? `${reason} (${detail}) — skipping…` : `${reason} — skipping…`;
-  setStatus(label, true);
+  setStatus(`${reason} — skipping…`, true);
   setTimeout(() => selectAndPlay(next, { userInitiated: false }), 600);
 }
 
@@ -693,7 +638,6 @@ function prevStation() {
 audio.addEventListener('play', () => { state.playing = true; renderNow(); });
 audio.addEventListener('playing', () => {
   state.autoSkipChain = 0;
-  setStatusDebug('');
   setStatus('on air');
   // Resume polling if we were paused/backgrounded and just came back.
   if (!np.timer && state.currentIndex >= 0) {
@@ -712,7 +656,6 @@ audio.addEventListener('waiting', () => { if (state.mode === 'player') setStatus
 audio.addEventListener('error', () => {
   if (state.hls) return;
   state.playing = false;
-  reportPlaybackDebug(`${state.streamPath || 'direct'} · media ${describeMediaError(audio.error)}`, audio.error);
   autoSkipOnFailure('stream error');
 });
 
