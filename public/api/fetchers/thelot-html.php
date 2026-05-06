@@ -43,6 +43,29 @@ function wh_fetch_nowplaying_thelot_html_extract(string $url): ?array {
             $raw = $body;
         }
     }
+    if ($raw === null && function_exists('curl_init')) {
+        $ch = curl_init($url);
+        if ($ch !== false) {
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_MAXREDIRS => 3,
+                CURLOPT_CONNECTTIMEOUT => 2,
+                CURLOPT_TIMEOUT_MS => 5000,
+                CURLOPT_USERAGENT => 'WaveHopper/1.0 (+https://github.com/maigre/WaveHopper)',
+                CURLOPT_HTTPHEADER => ['Accept: text/html,application/xhtml+xml'],
+                CURLOPT_ENCODING => '',
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
+            ]);
+            $curlBody = curl_exec($ch);
+            $curlCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            if ($curlBody !== false && $curlCode >= 200 && $curlCode < 300 && is_string($curlBody)) {
+                $raw = $curlBody;
+            }
+        }
+    }
     if ($raw === null) return null;
 
     $pattern = "/summary\\\\\":\\\\\"([^\\\\\"]+)\\\\\",\\\\\"start\\\\\":\\\\\"([^\\\\\"]+)\\\\\",\\\\\"end\\\\\":\\\\\"([^\\\\\"]+)\\\\\"/";
