@@ -456,6 +456,13 @@ function setMode(mode) {
   renderList();
 }
 
+function withNoCachePlaylistUrl(url) {
+  if (!/\.m3u8(\?|$)/i.test(url)) return url;
+  const busted = new URL(url, location.href);
+  busted.searchParams.set('wh_ts', String(Date.now()));
+  return busted.toString();
+}
+
 async function attachStream(s, epoch) {
   // Old attachment (if any) is being torn down — invalidate the marker now so a
   // user tap during the async setup window doesn't think we're already attached.
@@ -474,10 +481,16 @@ async function attachStream(s, epoch) {
       liveSyncDurationCount: 3,
       // Prevent the browser from serving stale live playlists from cache.
       // Livepeer's CDN only retains ~45s of segments; a cached manifest from a
-      // previous play attempt points to segments that are long gone.
+      // previous play attempt points to segments that are long gone. This hls.js
+      // build defaults to the XHR loader, so wire both request hooks.
       fetchSetup: (context, initParams) => {
         initParams.cache = 'no-store';
-        return new Request(context.url, initParams);
+        return new Request(withNoCachePlaylistUrl(context.url), initParams);
+      },
+      xhrSetup: (xhr, url) => {
+        xhr.open('GET', withNoCachePlaylistUrl(url), true);
+        xhr.setRequestHeader('Cache-Control', 'no-cache, no-store, max-age=0');
+        xhr.setRequestHeader('Pragma', 'no-cache');
       },
     });
     state.hls = hls;
@@ -493,10 +506,6 @@ async function attachStream(s, epoch) {
     hls.on(Hls.Events.ERROR, (_evt, data) => {
       if (epoch !== state.epoch) return;
       if (!data.fatal) return;
-      if (data.type === Hls.ErrorTypes.NETWORK_ERROR && !netRecovered) {
-        netRecovered = true;
-        try { hls.startLoad(); return; } catch {}
-      }
       if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !mediaRecovered) {
         mediaRecovered = true;
         try { hls.recoverMediaError(); return; } catch {}
