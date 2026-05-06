@@ -60,7 +60,7 @@ Always set `last_checked:` to today's ISO date when you touch a station.
      "station": "NTS",
      "channel": "1",
      "city": "London",
-       "homepage": "https://www.nts.live/",
+     "homepage": "https://www.nts.live/",
      "url": "https://stream.example.com/...",
      "format": "aac",
      "color": "#ff0000"
