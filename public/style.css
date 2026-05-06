@@ -266,6 +266,16 @@ h1 {
   word-break: break-word;
   flex: 1;
   min-width: 0;
+  text-decoration: none;
+}
+.now-station.linkable {
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.now-station.linkable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 .now-channel {
   font-size: 24px;

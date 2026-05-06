@@ -6,5 +6,6 @@
   "url": "https://stream-relay-geo.ntslive.net/stream",
   "format": "mp3",
   "color": "#fff205",
+  "homepage": "https://www.nts.live/",
   "nowPlaying": { "type": "nts" }
 }

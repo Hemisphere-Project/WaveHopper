@@ -49,16 +49,18 @@ Always set `last_checked:` to today's ISO date when you touch a station.
    - Note presence/absence of `Access-Control-Allow-Origin` (matters for Web Audio API, not for `<audio>`)
 7. **Update `stations/<id>.md`** with everything found:
    - Tick channels, fill stream URLs
+   - Ensure the frontmatter `site:` is present and points at the canonical station homepage used for the in-app title link
    - Fill the Verification block (format, scheme, CORS, mixed-content risk)
    - In Extraction notes, write *where* the URL was hidden — this is the durable lesson
    - Bump status (`extracted` after step 6, `verified` once curl is clean)
-8. **Write `stations/<id>.json`** (only if verified), one file per channel. Schema:
+8. **Write `stations/<id>.json`** (only if verified), one file per channel. Copy the homepage from the MD frontmatter's `site:` field into `homepage`. Schema:
    ```json
    {
      "id": "nts-1",
      "station": "NTS",
      "channel": "1",
      "city": "London",
+       "homepage": "https://www.nts.live/",
      "url": "https://stream.example.com/...",
      "format": "aac",
      "color": "#ff0000"

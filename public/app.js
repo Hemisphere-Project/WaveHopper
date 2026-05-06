@@ -1,7 +1,7 @@
 // WaveHopper — frontend entry.
 // Steps 1-4: shell, MP3+HLS playback with auto-skip, config mode + localStorage.
 
-const APP_VERSION = '20260506e';
+const APP_VERSION = '20260506f';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -15,7 +15,7 @@ const els = {
   title: $('.bar h1'),
   listLabel: $('.list-wrap .list-label'),
   now: $('#now'),
-  nowStation: $('.now-station'),
+  nowStation: $('#now-station'),
   nowChannel: $('.now-channel'),
   nowCity: $('.now-city'),
   controls: $('.controls'),
@@ -143,6 +143,22 @@ function setStatus(text, isError = false) {
   els.status.classList.toggle('error', !!isError);
 }
 
+function setNowStationHomepage(s) {
+  const homepage = state.playing && s && /^https?:\/\//.test(s.homepage || '') ? s.homepage : '';
+  els.nowStation.classList.toggle('linkable', !!homepage);
+  if (homepage) {
+    els.nowStation.href = homepage;
+    els.nowStation.target = '_blank';
+    els.nowStation.rel = 'noopener noreferrer';
+    els.nowStation.setAttribute('aria-label', `Open ${s.station} homepage`);
+    return;
+  }
+  els.nowStation.removeAttribute('href');
+  els.nowStation.removeAttribute('target');
+  els.nowStation.removeAttribute('rel');
+  els.nowStation.removeAttribute('aria-label');
+}
+
 function isMonoSkin() {
   const s = SKINS.find((x) => x.id === state.skin);
   return !!(s && s.mono);
@@ -227,12 +243,14 @@ function renderNow() {
   const s = state.stations[state.currentIndex];
   if (!s) {
     els.nowStation.textContent = '—';
+    setNowStationHomepage(null);
     els.nowChannel.textContent = '';
     els.nowCity.textContent = '';
     els.play.textContent = PLAY;
     return;
   }
   els.nowStation.textContent = s.station;
+  setNowStationHomepage(s);
   els.nowChannel.textContent = s.channel === 'main' ? '' : s.channel;
   els.nowCity.textContent = s.city || '';
   els.play.textContent = state.playing ? PAUSE : PLAY;
@@ -664,6 +682,17 @@ audio.addEventListener('error', () => {
 
 els.play.addEventListener('click', togglePlay);
 els.next.addEventListener('click', nextStation);
+els.nowStation.addEventListener('click', (e) => {
+  const s = state.stations[state.currentIndex];
+  if (!s || !state.playing || !s.homepage) {
+    e.preventDefault();
+    return;
+  }
+  e.preventDefault();
+  audio.pause();
+  const popup = window.open(s.homepage, '_blank', 'noopener,noreferrer');
+  if (popup) popup.opener = null;
+});
 els.modeToggle.addEventListener('click', () => setMode(state.mode === 'config' ? 'player' : 'config'));
 els.share.addEventListener('click', shareApp);
 els.aboutBtn.addEventListener('click', openAbout);

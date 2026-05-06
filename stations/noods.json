@@ -6,6 +6,7 @@
   "url": "https://noods-radio.radiocult.fm/stream",
   "format": "mp3",
   "color": "#00b3ff",
+  "homepage": "https://noodsradio.com/",
   "nowPlaying": {
     "type": "radiocult",
     "slug": "noods-radio"

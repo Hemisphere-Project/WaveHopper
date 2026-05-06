@@ -6,6 +6,7 @@
   "url": "https://dublab.out.airtime.pro/dublab_a",
   "format": "mp3",
   "color": "#e62b1e",
+  "homepage": "https://www.dublab.com/",
   "nowPlaying": {
     "type": "airtime",
     "endpoint": "https://dublab.airtime.pro/api/live-info-v2"
