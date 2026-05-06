@@ -1,7 +1,7 @@
 // WaveHopper — frontend entry.
 // Steps 1-4: shell, MP3+HLS playback with auto-skip, config mode + localStorage.
 
-const APP_VERSION = '20260506d';
+const APP_VERSION = '20260506e';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -463,6 +463,9 @@ function setMode(mode) {
 function withNoCachePlaylistUrl(url) {
   if (!/\.m3u8(\?|$)/i.test(url)) return url;
   const busted = new URL(url, location.href);
+  if (/(^https?:\/\/)?([^.]+\.)?(livepeercdn|playback\.livepeer)\.studio\//i.test(busted.href)) {
+    busted.searchParams.set('video', 'false');
+  }
   busted.searchParams.set('wh_ts', String(Date.now()));
   return busted.toString();
 }

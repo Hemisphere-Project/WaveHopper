@@ -14,7 +14,7 @@
 // Bump APP_VERSION on each deploy that changes the shell so installed PWAs fetch a
 // fresh sw.js URL and seed a new cache namespace.
 
-const APP_VERSION = '20260506d';
+const APP_VERSION = '20260506e';
 
 const CACHE = `wh-${APP_VERSION}`;
 
