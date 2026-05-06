@@ -8,6 +8,7 @@ const els = {
   play: $('#play'),
   next: $('#next'),
   status: $('#status'),
+  statusDebug: $('#status-debug'),
   modeToggle: $('#mode-toggle'),
   share: $('#share'),
   title: $('.bar h1'),
@@ -60,6 +61,7 @@ const state = {
   mode: 'player',        // 'player' | 'config'
   skin: 'dark',
   attachedId: null,      // station id whose stream is currently attached to <audio>
+  streamPath: '',
 };
 
 // Track currentTime progression so we can detect a frozen audio element even when
@@ -138,6 +140,49 @@ function nextEnabledFrom(idx) {
 function setStatus(text, isError = false) {
   els.status.textContent = text;
   els.status.classList.toggle('error', !!isError);
+}
+
+function setStatusDebug(text) {
+  const detail = text || '';
+  if (!els.statusDebug) return;
+  els.statusDebug.textContent = detail;
+  els.statusDebug.hidden = !detail;
+}
+
+function currentStationId() {
+  const station = state.stations[state.currentIndex];
+  return station ? station.id : 'unknown';
+}
+
+function describeMediaError(err) {
+  if (!err) return 'unknown';
+  const codeMap = {
+    1: 'aborted',
+    2: 'network',
+    3: 'decode',
+    4: 'src-not-supported',
+  };
+  return codeMap[err.code] || `code-${err.code || 'unknown'}`;
+}
+
+function formatHlsErrorDetail(data) {
+  const detail = [state.streamPath || 'hls.js'];
+  if (data.type) detail.push(data.type);
+  if (data.details) detail.push(data.details);
+  if (data.response && data.response.code) detail.push(`http-${data.response.code}`);
+  if (data.frag && Number.isFinite(data.frag.sn)) detail.push(`sn-${data.frag.sn}`);
+  return detail.join(' · ');
+}
+
+function reportPlaybackDebug(detail, extra = null) {
+  const stationId = currentStationId();
+  const message = `${stationId} · ${detail}`;
+  setStatusDebug(message);
+  if (extra) {
+    console.warn('[WaveHopper playback]', { stationId, detail, extra });
+    return;
+  }
+  console.warn('[WaveHopper playback]', { stationId, detail });
 }
 
 function isMonoSkin() {
@@ -468,6 +513,7 @@ async function attachStream(s, epoch) {
   // Old attachment (if any) is being torn down — invalidate the marker now so a
   // user tap during the async setup window doesn't think we're already attached.
   state.attachedId = null;
+  state.streamPath = '';
   teardownHls();
   audio.removeAttribute('src');
   audio.load();
@@ -477,6 +523,7 @@ async function attachStream(s, epoch) {
     const Hls = await loadHlsLib();
     if (epoch !== state.epoch) return;
     if (Hls.isSupported()) {
+      state.streamPath = 'hls.js';
       const hls = new Hls({
         maxBufferLength: 12,
         maxMaxBufferLength: 30,
@@ -508,6 +555,7 @@ async function attachStream(s, epoch) {
       hls.on(Hls.Events.ERROR, (_evt, data) => {
         if (epoch !== state.epoch) return;
         if (!data.fatal) return;
+        reportPlaybackDebug(formatHlsErrorDetail(data), data);
         if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !mediaRecovered) {
           mediaRecovered = true;
           try { hls.recoverMediaError(); return; } catch {}
@@ -517,6 +565,7 @@ async function attachStream(s, epoch) {
       return;
     }
   } else {
+    state.streamPath = isHls(s) ? 'native-hls' : 'direct';
     audio.src = s.url;
     return;
   }
@@ -524,6 +573,7 @@ async function attachStream(s, epoch) {
   // Installed iOS PWAs and some WebViews report native HLS support but do not
   // expose MSE/hls.js. Fall back to native playback instead of surfacing a
   // generic stream error, while still cache-busting Livepeer manifests.
+  state.streamPath = 'native-hls-fallback';
   audio.src = isHls(s) ? withNoCachePlaylistUrl(s.url) : s.url;
 }
 
@@ -551,6 +601,7 @@ async function selectAndPlay(index, { userInitiated = false } = {}) {
     if (myEpoch !== state.epoch) return;
     state.playing = true;
     state.autoSkipChain = 0;
+    setStatusDebug('');
     setStatus('on air');
     saveLastStation(s.id);
     startNowPlayingPoll(s);
@@ -565,6 +616,7 @@ async function selectAndPlay(index, { userInitiated = false } = {}) {
       // autoSkipOnFailure — play() rejection here is a secondary consequence.
       // Don't fire again or the skip chain increments twice.
     } else {
+      reportPlaybackDebug(`${state.streamPath || 'direct'} · play() ${err && err.name ? err.name : 'error'}`, err);
       autoSkipOnFailure('stream error');
     }
   }
@@ -631,6 +683,7 @@ function prevStation() {
 audio.addEventListener('play', () => { state.playing = true; renderNow(); });
 audio.addEventListener('playing', () => {
   state.autoSkipChain = 0;
+  setStatusDebug('');
   setStatus('on air');
   // Resume polling if we were paused/backgrounded and just came back.
   if (!np.timer && state.currentIndex >= 0) {
@@ -649,6 +702,7 @@ audio.addEventListener('waiting', () => { if (state.mode === 'player') setStatus
 audio.addEventListener('error', () => {
   if (state.hls) return;
   state.playing = false;
+  reportPlaybackDebug(`${state.streamPath || 'direct'} · media ${describeMediaError(audio.error)}`, audio.error);
   autoSkipOnFailure('stream error');
 });
 

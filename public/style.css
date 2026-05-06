@@ -343,6 +343,13 @@ h1 {
 }
 .status.error { color: #ff4444; }
 
+.status-debug {
+  min-height: 1.15em;
+  font-size: 15px;
+  color: var(--dim);
+  word-break: break-word;
+}
+
 .list-wrap { display: flex; flex-direction: column; gap: 8px; }
 
 .list-label {
