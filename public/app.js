@@ -95,6 +95,7 @@ function loadHlsLib() {
 }
 
 const isHls = (s) => s.format === 'hls' || /\.m3u8(\?|$)/i.test(s.url);
+const isLivepeerHls = (s) => /(^https?:\/\/)?([^.]+\.)?(livepeercdn|playback\.livepeer)\.studio\//i.test(s.url);
 const nativeHls = audio.canPlayType('application/vnd.apple.mpegurl') !== '';
 const isEnabled = (s) => !state.disabled.has(s.id);
 
@@ -471,7 +472,8 @@ async function attachStream(s, epoch) {
   audio.removeAttribute('src');
   audio.load();
 
-  if (isHls(s) && !nativeHls) {
+  const shouldUseHlsJs = isHls(s) && (!nativeHls || isLivepeerHls(s));
+  if (shouldUseHlsJs) {
     const Hls = await loadHlsLib();
     if (epoch !== state.epoch) return;
     if (!Hls.isSupported()) throw new Error('HLS not supported');
