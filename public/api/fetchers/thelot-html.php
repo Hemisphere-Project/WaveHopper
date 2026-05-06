@@ -16,56 +16,62 @@ declare(strict_types=1);
 
 function wh_fetch_nowplaying_thelot_html_extract(string $url): ?array {
     $raw = null;
-    $ctx = stream_context_create([
-        'http' => [
-            'method' => 'GET',
-            'header' => implode("\r\n", [
-                'Accept: text/html,application/xhtml+xml',
-                'User-Agent: WaveHopper/1.0 (+https://github.com/maigre/WaveHopper)',
-            ]),
-            'timeout' => 5,
-            'follow_location' => 1,
-            'max_redirects' => 3,
-            'ignore_errors' => true,
-        ],
-        'https' => [
-            'verify_peer' => true,
-            'verify_peer_name' => true,
-        ],
-    ]);
-    $body = @file_get_contents($url, false, $ctx);
-    if (is_string($body)) {
+    $tryStream = static function(bool $verifyPeer) use ($url): ?string {
+        $ctx = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'header' => implode("\r\n", [
+                    'Accept: text/html,application/xhtml+xml',
+                    'User-Agent: WaveHopper/1.0 (+https://github.com/maigre/WaveHopper)',
+                ]),
+                'timeout' => 5,
+                'follow_location' => 1,
+                'max_redirects' => 3,
+                'ignore_errors' => true,
+            ],
+            'https' => [
+                'verify_peer' => $verifyPeer,
+                'verify_peer_name' => $verifyPeer,
+            ],
+        ]);
+        $body = @file_get_contents($url, false, $ctx);
+        if (!is_string($body)) return null;
         $status = 0;
         if (isset($http_response_header[0]) && preg_match('#HTTP/\S+\s+(\d+)#', $http_response_header[0], $m)) {
             $status = (int)$m[1];
         }
-        if ($status >= 200 && $status < 300) {
-            $raw = $body;
-        }
-    }
-    if ($raw === null && function_exists('curl_init')) {
+        return ($status >= 200 && $status < 300) ? $body : null;
+    };
+
+    $tryCurl = static function(bool $verifyPeer) use ($url): ?string {
+        if (!function_exists('curl_init')) return null;
         $ch = curl_init($url);
-        if ($ch !== false) {
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_MAXREDIRS => 3,
-                CURLOPT_CONNECTTIMEOUT => 2,
-                CURLOPT_TIMEOUT_MS => 5000,
-                CURLOPT_USERAGENT => 'WaveHopper/1.0 (+https://github.com/maigre/WaveHopper)',
-                CURLOPT_HTTPHEADER => ['Accept: text/html,application/xhtml+xml'],
-                CURLOPT_ENCODING => '',
-                CURLOPT_SSL_VERIFYPEER => true,
-                CURLOPT_SSL_VERIFYHOST => 2,
-            ]);
-            $curlBody = curl_exec($ch);
-            $curlCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-            if ($curlBody !== false && $curlCode >= 200 && $curlCode < 300 && is_string($curlBody)) {
-                $raw = $curlBody;
-            }
-        }
-    }
+        if ($ch === false) return null;
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS => 3,
+            CURLOPT_CONNECTTIMEOUT => 2,
+            CURLOPT_TIMEOUT_MS => 5000,
+            CURLOPT_USERAGENT => 'WaveHopper/1.0 (+https://github.com/maigre/WaveHopper)',
+            CURLOPT_HTTPHEADER => ['Accept: text/html,application/xhtml+xml'],
+            CURLOPT_ENCODING => '',
+            CURLOPT_SSL_VERIFYPEER => $verifyPeer,
+            CURLOPT_SSL_VERIFYHOST => $verifyPeer ? 2 : 0,
+        ]);
+        $body = curl_exec($ch);
+        $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        return ($body !== false && $code >= 200 && $code < 300 && is_string($body)) ? $body : null;
+    };
+
+    $raw = $tryStream(true)
+        ?? $tryCurl(true)
+        // Shared hosts sometimes ship stale CA bundles or disable the HTTPS
+        // stream wrapper; fall back to relaxed verification for this public,
+        // read-only schedule page rather than blanking the now-playing card.
+        ?? $tryStream(false)
+        ?? $tryCurl(false);
     if ($raw === null) return null;
 
     $pattern = "/summary\\\\\":\\\\\"([^\\\\\"]+)\\\\\",\\\\\"start\\\\\":\\\\\"([^\\\\\"]+)\\\\\",\\\\\"end\\\\\":\\\\\"([^\\\\\"]+)\\\\\"/";
