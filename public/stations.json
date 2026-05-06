@@ -19,7 +19,11 @@
     "city": "Brooklyn",
     "url": "https://livepeercdn.studio/hls/85c28sa2o8wppm58/index.m3u8",
     "format": "hls",
-    "color": "#ff6600"
+    "color": "#ff6600",
+    "nowPlaying": {
+      "type": "thelot-html",
+      "endpoint": "https://www.thelotradio.com/"
+    }
   },
   {
     "id": "kiosk",

@@ -44,6 +44,16 @@ offline. The URL itself is correct (HTTP 200, audio/HLS content-type, CORS `*`,
 - Live state at check: offline (between broadcasts) — URL still valid
 - WebRTC alternative also exposed: https://livepeercdn.studio/webrtc/85c28sa2o8wppm58
 
+## Now-playing
+- Source type: `thelot-html`
+- Endpoint: `https://www.thelotradio.com/` — the homepage's React Flight payload embeds
+  today's lineup as event objects; no dedicated now-playing JSON/XHR endpoint was found.
+- Mapping: current event `summary` -> `title`; `subtitle` -> `null`; event `start`/`end`
+  -> `starts`/`ends`; next event `summary`/`start` -> `next.title` / `next.starts`.
+- Cache key: `thelot-html` (30 s, show-level)
+- Caveats: this is schedule-level metadata, not per-track data. `ffprobe` against the live
+  HLS variant exposed audio/video streams only, with no visible ID3/data stream to parse.
+
 ## Open questions
 - WaveHopper's player needs to handle HLS (hls.js) and tolerate offline live
   streams gracefully — the manifest can return an empty/error playlist when no
