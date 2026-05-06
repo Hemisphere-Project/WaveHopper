@@ -472,6 +472,13 @@ async function attachStream(s, epoch) {
       maxBufferLength: 12,
       maxMaxBufferLength: 30,
       liveSyncDurationCount: 3,
+      // Prevent the browser from serving stale live playlists from cache.
+      // Livepeer's CDN only retains ~45s of segments; a cached manifest from a
+      // previous play attempt points to segments that are long gone.
+      fetchSetup: (context, initParams) => {
+        initParams.cache = 'no-store';
+        return new Request(context.url, initParams);
+      },
     });
     state.hls = hls;
     hls.attachMedia(audio);
@@ -534,6 +541,10 @@ async function selectAndPlay(index, { userInitiated = false } = {}) {
     state.playing = false;
     if (userInitiated && err && err.name === 'NotAllowedError') {
       setStatus('tap PLAY to start');
+    } else if (state.hls) {
+      // For HLS streams the hls.js error listener already called (or will call)
+      // autoSkipOnFailure — play() rejection here is a secondary consequence.
+      // Don't fire again or the skip chain increments twice.
     } else {
       autoSkipOnFailure('stream error');
     }
