@@ -1,4 +1,4 @@
-// WaveHopper — frontend entry.
+// Waverz.net — frontend entry.
 // Steps 1-4: shell, MP3+HLS playback with auto-skip, config mode + localStorage.
 
 const APP_VERSION = '20260506f';
@@ -269,12 +269,12 @@ function updateMediaSession(s) {
   if (meta && meta.title) {
     title = meta.subtitle ? `${meta.subtitle} — ${meta.title}` : meta.title;
   } else {
-    title = s.city || 'WaveHopper';
+    title = s.city || 'Waverz.net';
   }
   navigator.mediaSession.metadata = new MediaMetadata({
     title,
     artist: stationName,
-    album: 'WaveHopper',
+    album: 'Waverz.net',
     artwork: [
       { src: '/img/favicon/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
       { src: '/img/favicon/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
@@ -466,7 +466,7 @@ function toggleStation(i) {
 function setMode(mode) {
   state.mode = mode;
   document.body.classList.toggle('config-mode', mode === 'config');
-  els.title.textContent = mode === 'config' ? 'CONFIG' : 'WAVEHOPPER';
+  els.title.textContent = mode === 'config' ? 'CONFIG' : 'WAVERZ.NET';
   els.modeToggle.textContent = mode === 'config' ? CHECK : GEAR;
   els.modeToggle.setAttribute('aria-label', mode === 'config' ? 'Done' : 'Settings');
   els.listLabel.textContent = mode === 'config' ? 'ENABLE / DISABLE' : 'STATIONS';
@@ -716,7 +716,7 @@ async function shareApp() {
   // navigator.share is mobile-first; requires a user gesture and HTTPS.
   if (navigator.share) {
     try {
-      await navigator.share({ title: 'WaveHopper', text: 'WaveHopper', url });
+      await navigator.share({ title: 'Waverz.net', text: 'Waverz.net', url });
     } catch (err) {
       // AbortError = user dismissed the sheet; anything else falls through to clipboard.
       if (err && err.name === 'AbortError') return;

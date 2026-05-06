@@ -1,5 +1,5 @@
 <?php
-// WaveHopper — now-playing dispatcher.
+// Waverz.net — now-playing dispatcher.
 // Reads ../stations.json, finds the requested station's `nowPlaying` block,
 // loads the matching fetcher in fetchers/<type>.php, and returns a normalized
 // JSON shape. File-cache is per fetcher key (some fetchers cover many stations

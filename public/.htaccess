@@ -1,4 +1,4 @@
-# WaveHopper — Apache / LiteSpeed shared-hosting config.
+# Waverz.net — Apache / LiteSpeed shared-hosting config.
 # Plain Nginx ignores this file; ask the host for equivalent rules in that case.
 
 # --- Correct MIME types ----------------------------------------------------
@@ -7,6 +7,16 @@ AddType application/javascript    .js
 AddType application/json          .json
 AddType application/vnd.apple.mpegurl .m3u8
 AddType font/woff2                .woff2
+
+# --- Canonical host --------------------------------------------------------
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTP_HOST} !^waverz\.net$ [NC]
+    RewriteCond %{HTTP_HOST} !^localhost(:[0-9]+)?$ [NC]
+    RewriteCond %{HTTP_HOST} !^127\.0\.0\.1(:[0-9]+)?$ [NC]
+    RewriteCond %{HTTP_HOST} !^\[::1\](:[0-9]+)?$ [NC]
+    RewriteRule ^ https://waverz.net%{REQUEST_URI} [R=301,L,NE]
+</IfModule>
 
 # --- Cache headers ---------------------------------------------------------
 <IfModule mod_headers.c>

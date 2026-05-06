@@ -35,7 +35,7 @@ function wh_fetch_nowplaying_lyl_graphql(string $id, array $cfg, array $station)
             CURLOPT_MAXREDIRS       => 3,
             CURLOPT_CONNECTTIMEOUT  => 2,
             CURLOPT_TIMEOUT_MS      => 4000,
-            CURLOPT_USERAGENT       => 'WaveHopper/1.0 (+https://github.com/Hemisphere-Project/WaveHopper)',
+            CURLOPT_USERAGENT       => 'Waverz.net/1.0 (+https://waverz.net)',
             CURLOPT_ENCODING        => '',
             CURLOPT_SSL_VERIFYPEER  => true,
             CURLOPT_SSL_VERIFYHOST  => 2,

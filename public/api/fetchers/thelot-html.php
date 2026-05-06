@@ -22,7 +22,7 @@ function wh_fetch_nowplaying_thelot_html_extract(string $url): ?array {
                 'method' => 'GET',
                 'header' => implode("\r\n", [
                     'Accept: text/html,application/xhtml+xml',
-                    'User-Agent: WaveHopper/1.0 (+https://github.com/maigre/WaveHopper)',
+                    'User-Agent: Waverz.net/1.0 (+https://waverz.net)',
                 ]),
                 'timeout' => 5,
                 'follow_location' => 1,
@@ -53,7 +53,7 @@ function wh_fetch_nowplaying_thelot_html_extract(string $url): ?array {
             CURLOPT_MAXREDIRS => 3,
             CURLOPT_CONNECTTIMEOUT => 2,
             CURLOPT_TIMEOUT_MS => 5000,
-            CURLOPT_USERAGENT => 'WaveHopper/1.0 (+https://github.com/maigre/WaveHopper)',
+            CURLOPT_USERAGENT => 'Waverz.net/1.0 (+https://waverz.net)',
             CURLOPT_HTTPHEADER => ['Accept: text/html,application/xhtml+xml'],
             CURLOPT_ENCODING => '',
             CURLOPT_SSL_VERIFYPEER => $verifyPeer,
