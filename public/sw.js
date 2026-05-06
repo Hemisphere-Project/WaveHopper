@@ -11,11 +11,12 @@
 //   handles them directly. Touching a live audio body in a SW would buffer it in
 //   memory and break playback continuity.
 //
-// Bumping CACHE forces a fresh install on next activation; pair it with any change
-// to which paths are routed where, since old SWs keep their old strategy until
-// replaced.
+// Bump APP_VERSION on each deploy that changes the shell so installed PWAs fetch a
+// fresh sw.js URL and seed a new cache namespace.
 
-const CACHE = 'wh-v3';
+const APP_VERSION = '20260506c';
+
+const CACHE = `wh-${APP_VERSION}`;
 
 // Code paths — always try network first, fall back to cache only if offline.
 // Editing any of these and re-deploying = users get the new version on next reload.
@@ -46,12 +47,12 @@ const SWR_ASSETS = new Set([
 const PREFETCH_CRITICAL = [
   '/',
   '/index.html',
-  '/style.css',
-  '/app.js',
+  `/style.css?v=${APP_VERSION}`,
+  `/app.js?v=${APP_VERSION}`,
   '/vendor/vt323-latin.woff2',
   '/vendor/fredoka-latin.woff2',
   '/vendor/hls.light.min.js',
-  '/manifest.webmanifest',
+  `/manifest.webmanifest?v=${APP_VERSION}`,
 ];
 
 // Best-effort prefetch — 404s here don't block install.

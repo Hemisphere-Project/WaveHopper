@@ -1,6 +1,8 @@
 // WaveHopper — frontend entry.
 // Steps 1-4: shell, MP3+HLS playback with auto-skip, config mode + localStorage.
 
+const APP_VERSION = '20260506c';
+
 const $ = (sel) => document.querySelector(sel);
 
 const els = {
@@ -62,6 +64,7 @@ const state = {
   skin: 'dark',
   attachedId: null,      // station id whose stream is currently attached to <audio>
   streamPath: '',
+  lastPlaybackDebug: '',
 };
 
 // Track currentTime progression so we can detect a frozen audio element even when
@@ -176,6 +179,7 @@ function formatHlsErrorDetail(data) {
 
 function reportPlaybackDebug(detail, extra = null) {
   const stationId = currentStationId();
+  state.lastPlaybackDebug = detail;
   const message = `${stationId} · ${detail}`;
   setStatusDebug(message);
   if (extra) {
@@ -582,6 +586,7 @@ async function selectAndPlay(index, { userInitiated = false } = {}) {
   if (userInitiated) state.autoSkipChain = 0;
   const myEpoch = ++state.epoch;
   state.currentIndex = index;
+  state.lastPlaybackDebug = '';
   const s = state.stations[index];
 
   // Reset stuck-time tracker — the next 'playing' event will rearm it.
@@ -601,6 +606,7 @@ async function selectAndPlay(index, { userInitiated = false } = {}) {
     if (myEpoch !== state.epoch) return;
     state.playing = true;
     state.autoSkipChain = 0;
+    state.lastPlaybackDebug = '';
     setStatusDebug('');
     setStatus('on air');
     saveLastStation(s.id);
@@ -625,9 +631,11 @@ async function selectAndPlay(index, { userInitiated = false } = {}) {
 
 function autoSkipOnFailure(reason) {
   state.autoSkipChain += 1;
+  const detail = state.lastPlaybackDebug;
   const cap = Math.max(1, enabledCount());
   if (state.autoSkipChain >= cap) {
-    setStatus('no stations on air', true);
+    const final = detail ? `no stations on air (${detail})` : 'no stations on air';
+    setStatus(final, true);
     state.playing = false;
     teardownHls();
     renderNow();
@@ -635,10 +643,12 @@ function autoSkipOnFailure(reason) {
   }
   const next = nextEnabledFrom(state.currentIndex);
   if (next < 0) {
-    setStatus('no stations on air', true);
+    const final = detail ? `no stations on air (${detail})` : 'no stations on air';
+    setStatus(final, true);
     return;
   }
-  setStatus(`${reason} — skipping…`);
+  const label = detail ? `${reason} (${detail}) — skipping…` : `${reason} — skipping…`;
+  setStatus(label, true);
   setTimeout(() => selectAndPlay(next, { userInitiated: false }), 600);
 }
 
@@ -883,7 +893,8 @@ function maybeReloadForSW() {
 
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
-  navigator.serviceWorker.register('/sw.js').then((reg) => {
+  navigator.serviceWorker.register(`/sw.js?v=${APP_VERSION}`).then((reg) => {
+    reg.update().catch(() => {});
     // A waiting SW already present at registration time (race on first paint).
     if (reg.waiting) reg.waiting.postMessage('skipWaiting');
     reg.addEventListener('updatefound', () => {
