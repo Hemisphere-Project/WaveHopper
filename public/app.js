@@ -472,51 +472,59 @@ async function attachStream(s, epoch) {
   audio.removeAttribute('src');
   audio.load();
 
-  const shouldUseHlsJs = isHls(s) && (!nativeHls || isLivepeerHls(s));
-  if (shouldUseHlsJs) {
+  const wantsHlsJs = isHls(s) && (!nativeHls || isLivepeerHls(s));
+  if (wantsHlsJs) {
     const Hls = await loadHlsLib();
     if (epoch !== state.epoch) return;
-    if (!Hls.isSupported()) throw new Error('HLS not supported');
-    const hls = new Hls({
-      maxBufferLength: 12,
-      maxMaxBufferLength: 30,
-      liveSyncDurationCount: 3,
-      // Prevent the browser from serving stale live playlists from cache.
-      // Livepeer's CDN only retains ~45s of segments; a cached manifest from a
-      // previous play attempt points to segments that are long gone. This hls.js
-      // build defaults to the XHR loader, so wire both request hooks.
-      fetchSetup: (context, initParams) => {
-        initParams.cache = 'no-store';
-        return new Request(withNoCachePlaylistUrl(context.url), initParams);
-      },
-      xhrSetup: (xhr, url) => {
-        xhr.open('GET', withNoCachePlaylistUrl(url), true);
-        xhr.setRequestHeader('Cache-Control', 'no-cache, no-store, max-age=0');
-        xhr.setRequestHeader('Pragma', 'no-cache');
-      },
-    });
-    state.hls = hls;
-    hls.attachMedia(audio);
-    await new Promise((resolve) => hls.on(Hls.Events.MEDIA_ATTACHED, resolve));
-    if (epoch !== state.epoch) return;
-    hls.loadSource(s.url);
-
-    // Soft-recovery: on fatal NETWORK_ERROR try startLoad() once, on fatal MEDIA_ERROR
-    // try recoverMediaError() once, before declaring the station off-air. Avoids
-    // skipping when the upstream just hiccuped.
-    let netRecovered = false, mediaRecovered = false;
-    hls.on(Hls.Events.ERROR, (_evt, data) => {
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        maxBufferLength: 12,
+        maxMaxBufferLength: 30,
+        liveSyncDurationCount: 3,
+        // Prevent the browser from serving stale live playlists from cache.
+        // Livepeer's CDN only retains ~45s of segments; a cached manifest from a
+        // previous play attempt points to segments that are long gone. This hls.js
+        // build defaults to the XHR loader, so wire both request hooks.
+        fetchSetup: (context, initParams) => {
+          initParams.cache = 'no-store';
+          return new Request(withNoCachePlaylistUrl(context.url), initParams);
+        },
+        xhrSetup: (xhr, url) => {
+          xhr.open('GET', withNoCachePlaylistUrl(url), true);
+          xhr.setRequestHeader('Cache-Control', 'no-cache, no-store, max-age=0');
+          xhr.setRequestHeader('Pragma', 'no-cache');
+        },
+      });
+      state.hls = hls;
+      hls.attachMedia(audio);
+      await new Promise((resolve) => hls.on(Hls.Events.MEDIA_ATTACHED, resolve));
       if (epoch !== state.epoch) return;
-      if (!data.fatal) return;
-      if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !mediaRecovered) {
-        mediaRecovered = true;
-        try { hls.recoverMediaError(); return; } catch {}
-      }
-      autoSkipOnFailure('off air');
-    });
+      hls.loadSource(s.url);
+
+      // Soft-recovery: on fatal NETWORK_ERROR try startLoad() once, on fatal MEDIA_ERROR
+      // try recoverMediaError() once, before declaring the station off-air. Avoids
+      // skipping when the upstream just hiccuped.
+      let netRecovered = false, mediaRecovered = false;
+      hls.on(Hls.Events.ERROR, (_evt, data) => {
+        if (epoch !== state.epoch) return;
+        if (!data.fatal) return;
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !mediaRecovered) {
+          mediaRecovered = true;
+          try { hls.recoverMediaError(); return; } catch {}
+        }
+        autoSkipOnFailure('off air');
+      });
+      return;
+    }
   } else {
     audio.src = s.url;
+    return;
   }
+
+  // Installed iOS PWAs and some WebViews report native HLS support but do not
+  // expose MSE/hls.js. Fall back to native playback instead of surfacing a
+  // generic stream error, while still cache-busting Livepeer manifests.
+  audio.src = isHls(s) ? withNoCachePlaylistUrl(s.url) : s.url;
 }
 
 async function selectAndPlay(index, { userInitiated = false } = {}) {
