@@ -66,7 +66,7 @@ Always set `last_checked:` to today's ISO date when you touch a station.
      "color": "#ff0000"
    }
    ```
-   Then add the new id to `stations/_order.json` at the position where it should appear in the UI list (preserve existing order — usually append, or group with sibling channels). After writing, set the MD status to `added` and run `bun run build:stations` to regenerate `public/stations.json` (the static artifact deployed alongside the rest of `public/`).
+   Then add the new id to `stations/_order.json` at the position where it should appear in the UI list (preserve existing order — usually append, or group with sibling channels). After writing, set the MD status to `added` and run `python3 build.py` from the repo root to regenerate `public/stations.json` (the static artifact deployed alongside the rest of `public/`).
 9. **Update the "Patterns we've seen" section below** with anything new and reusable. This is how the skill gets sharper.
 
 ## Patterns we've seen

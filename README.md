@@ -23,10 +23,7 @@ WaveHopper/
 │       ├── fetchers/             One PHP fetcher per source type (nts, airtime, …)
 │       ├── lib/                  Shared PHP helpers
 │       └── cache/                Filesystem cache for upstream metadata
-├── server/
-│   ├── relay.ts                  Bun dev server (static + builds stations.json on the fly)
-│   ├── stations.ts               Reads stations/<id>.json + _order.json, returns the list
-│   └── build-stations.ts         Writes the static public/stations.json artifact
+├── build.py                      Root Python build script for public/stations.json
 ├── stations/                     Per-station source files, source of truth
 │   ├── _order.json               Curated display order
 │   ├── _template.md              Template for new stations
@@ -71,7 +68,7 @@ Optional fields:
 | `added`       | JSON file exists and the station is wired up               |
 | `broken`      | Could not crack from public site, parked                   |
 
-**`stations/_order.json`** — the curated display order (array of ids). Stations not listed are appended alphabetically; the build script ([server/stations.ts](server/stations.ts)) handles the merge.
+**`stations/_order.json`** — the curated display order (array of ids). Stations not listed are appended alphabetically; the build script ([build.py](build.py)) handles the merge.
 
 ## Current catalog
 
@@ -152,25 +149,25 @@ grep -l 'status: pending\|status: researching\|status: broken' stations/*.md
 ## Development
 
 ```sh
-bun install
-bun run dev               # static dev server on :3000, rebuilds stations.json on the fly
+python3 build.py
+php -S 127.0.0.1:3000 -t public
 ```
 
-The dev server serves [public/](public/) and synthesises `/stations.json` from the per-station files in [stations/](stations/). PHP isn't proxied — for local now-playing testing, run a separate PHP-FPM in front of [public/](public/) or skip metadata locally.
+`build.py` writes [public/stations.json](public/stations.json) from the per-station files in [stations/](stations/). For local development, rerun it after station changes, then serve [public/](public/) with PHP's built-in server so `/api/*.php` works the same way it does on the deploy target.
 
 ### Building the static stations artifact
 
 ```sh
-bun run build:stations    # writes public/stations.json from stations/<id>.json + _order.json
+python3 build.py          # writes public/stations.json from stations/<id>.json + _order.json
 ```
 
-Run this before deploying to a host that doesn't run the Bun dev server (i.e. plain nginx or shared PHP hosting).
+Run this before deploying to any PHP-ready host.
 
 ## Deploy
 
-Production assumes nginx + PHP-FPM (or any static + PHP host). The Bun runtime is dev-only.
+Production assumes nginx + PHP-FPM (or any static + PHP host). No Bun or Node runtime is required.
 
-1. `bun run build:stations` to refresh `public/stations.json`.
+1. `python3 build.py` to refresh `public/stations.json`.
 2. Sync [public/](public/) to the docroot.
 3. Configure PHP-FPM for `*.php` under `/api/`. Make sure `public/api/cache/` is writable by the PHP user.
 4. nginx serves everything else as static files. PWA install requires HTTPS — terminate TLS at nginx.

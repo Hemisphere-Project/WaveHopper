@@ -14,6 +14,18 @@
 
 declare(strict_types=1);
 
+function wh_fetch_nowplaying_thelot_html_can_use_stale(?array $cached): bool {
+    if (!is_array($cached)) return false;
+
+    $ends = isset($cached['ends']) && is_string($cached['ends']) ? strtotime($cached['ends']) : false;
+    if ($ends === false) return false;
+
+    // If a refresh fails, keep the previous slot only while it is still on air,
+    // plus a small grace window for clock skew / fetch timing. Don't pin an old
+    // day's schedule forever.
+    return time() <= ($ends + 300);
+}
+
 function wh_fetch_nowplaying_thelot_html_extract(string $url): ?array {
     $raw = null;
     $tryStream = static function(bool $verifyPeer) use ($url): ?string {
@@ -141,9 +153,9 @@ function wh_fetch_nowplaying_thelot_html_extract(string $url): ?array {
 function wh_fetch_nowplaying_thelot_html(string $id, array $cfg, array $station): ?array {
     $key = 'thelot-html';
     $age = wh_cache_age($key);
+    $cached = wh_cache_read($key);
     if ($age !== null && $age < 30) {
-        $hit = wh_cache_read($key);
-        if ($hit !== null) return $hit;
+        if ($cached !== null) return $cached;
     }
 
     try {
@@ -158,5 +170,5 @@ function wh_fetch_nowplaying_thelot_html(string $id, array $cfg, array $station)
         return $fresh;
     }
 
-    return wh_cache_read($key);
+    return wh_fetch_nowplaying_thelot_html_can_use_stale($cached) ? $cached : null;
 }

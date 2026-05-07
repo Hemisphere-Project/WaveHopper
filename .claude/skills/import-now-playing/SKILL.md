@@ -22,7 +22,7 @@ This skill writes:
 - A `nowPlaying` block in `stations/<id>.json` with at minimum `{ "type": "<type>" }`. Optional per-type fields (e.g. an `endpoint` URL for Airtime) can sit alongside.
 - A filled-out `## Now-playing` section in `stations/<id>.md` describing endpoint, mapping, cache key, and any caveats.
 - A new fetcher at `public/api/fetchers/<type>.php` if the type doesn't exist yet (function name: `wh_fetch_nowplaying_<type>`, dashes in the type become underscores in the function name).
-- An updated `public/stations.json` via `bun run build:stations`.
+- An updated `public/stations.json` via `python3 build.py` from the repo root.
 
 If the station has no usable metadata source, write `"nowPlaying": { "type": "none" }` — that's the explicit "we checked, there's nothing" marker. The dispatcher returns 204 and the frontend hides the card.
 
@@ -70,7 +70,7 @@ The dispatcher injects `source` and `fetchedAt` afterward. **Don't add other top
 5. **Write the fetcher** at `public/api/fetchers/<type>.php`. Cache TTL: 30s for show-level data, 20s for per-track data. If one upstream call serves multiple stations (NTS pattern), use a shared cache key and pick by `station.channel` or `station.id`.
 6. **Update `stations/<id>.json`** — add the `nowPlaying` block.
 7. **Update `stations/<id>.md`** — fill the `## Now-playing` section (endpoint, mapping, cache key, caveats).
-8. **Run `bun run build:stations`** to regenerate `public/stations.json`.
+8. **Run `python3 build.py`** from the repo root to regenerate `public/stations.json`.
 9. **Update "Patterns we've seen" below** with anything new and reusable.
 
 ## Verification on the deployed host
