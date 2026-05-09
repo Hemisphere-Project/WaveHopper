@@ -1,7 +1,7 @@
 // Waverz·net — frontend entry.
 // Steps 1-4: shell, MP3+HLS playback with auto-skip, config mode + localStorage.
 
-const APP_VERSION = '20260509g';
+const APP_VERSION = '20260509h';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -279,8 +279,8 @@ function renderNow() {
 // Default artwork — used when a station has no `icon` field. Listed in two
 // sizes so Chrome can pick whichever matches its lock-screen target.
 const DEFAULT_ARTWORK = [
-  { src: `/img/favicon/android-chrome-192x192.png?v=${APP_VERSION}`, sizes: '192x192', type: 'image/png' },
-  { src: `/img/favicon/android-chrome-512x512.png?v=${APP_VERSION}`, sizes: '512x512', type: 'image/png' },
+  { src: '/img/favicon/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
+  { src: '/img/favicon/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
 ];
 // Append the build version to same-origin icon paths so the OS-level
 // MediaSession artwork cache picks up new files when we re-bake them.
@@ -293,14 +293,12 @@ function bustIfLocal(src) {
 }
 function stationArtwork(s) {
   if (!s.icon) return DEFAULT_ARTWORK;
-  // Claim multiple concrete sizes for the station icon so Chrome's size-match
-  // picker picks it for any target (96px–512px). Using `sizes: 'any'` lost to
-  // the WaveHopper logo on Android. The local 512px logo is a load-failure
-  // fallback for when the cross-origin icon can't be fetched.
-  return [
-    { src: bustIfLocal(s.icon), sizes: '96x96 128x128 192x192 256x256 384x384 512x512' },
-    { src: `/img/favicon/android-chrome-512x512.png?v=${APP_VERSION}`, sizes: '512x512', type: 'image/png' },
-  ];
+  // Single artwork entry, sizes='any' — empirically the format Chrome's
+  // MediaSession picker honors. Earlier attempts (multi-size lists, paired
+  // fallback entries) caused Chrome to pick the WaveHopper fallback over
+  // the station icon. No fallback here: if the URL fails to load Android
+  // shows no artwork, which is preferable to the wrong artwork.
+  return [{ src: bustIfLocal(s.icon), sizes: 'any' }];
 }
 
 function updateMediaSession(s) {
