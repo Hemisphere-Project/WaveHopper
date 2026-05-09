@@ -1,7 +1,7 @@
 // Waverz//net — frontend entry.
 // Steps 1-4: shell, MP3+HLS playback with auto-skip, config mode + localStorage.
 
-const APP_VERSION = '20260509a';
+const APP_VERSION = '20260509b';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -244,6 +244,10 @@ const PAUSE = '|| PAUSE';
 const GEAR  = '⚙︎';
 const CHECK = '✓';
 
+function stationLabel(s) {
+  return s.channel && s.channel !== 'main' ? `${s.station} · ${s.channel}` : s.station;
+}
+
 function renderNow() {
   const s = state.stations[state.currentIndex];
   if (!s) {
@@ -252,6 +256,7 @@ function renderNow() {
     els.nowChannel.textContent = '';
     els.nowCity.textContent = '';
     els.play.textContent = PLAY;
+    document.title = 'Waverz//net';
     return;
   }
   els.nowStation.textContent = s.station;
@@ -259,31 +264,46 @@ function renderNow() {
   els.nowChannel.textContent = s.channel === 'main' ? '' : s.channel;
   els.nowCity.textContent = s.city || '';
   els.play.textContent = state.playing ? PAUSE : PLAY;
+  document.title = `Waverz//net — ${stationLabel(s)}`;
   applyAccent();
   updateMediaSession(s);
 }
 
+// Default artwork — used when a station has no `icon` field. Listed in two
+// sizes so Chrome can pick whichever matches its lock-screen target.
+const DEFAULT_ARTWORK = [
+  { src: '/img/favicon/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
+  { src: '/img/favicon/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
+];
+function stationArtwork(s) {
+  if (!s.icon) return DEFAULT_ARTWORK;
+  // sizes: 'any' marks the icon as scalable so the browser picks it regardless
+  // of the target slot size — matters for square station logos at unknown res.
+  return [{ src: s.icon, sizes: 'any' }];
+}
+
 function updateMediaSession(s) {
   if (!('mediaSession' in navigator)) return;
-  const stationName = s.channel && s.channel !== 'main' ? `${s.station} · ${s.channel}` : s.station;
+  const stationName = stationLabel(s);
   const meta = (np.data && np.stationId === s.id) ? np.data : null;
 
   // Artist = station name, always (prominent line on Android lock screen / notification).
-  // Title  = "Artist — Track" if metadata available, otherwise city fallback.
+  // Title  = "Subtitle — Track" once metadata arrives. Until then, repeat the
+  // station name instead of the city: the city fallback used to flash for a
+  // beat before the now-playing fetch landed, and the swap looked broken.
   let title;
   if (meta && meta.title) {
     title = meta.subtitle ? `${meta.subtitle} — ${meta.title}` : meta.title;
+  } else if (hasServerSource(s)) {
+    title = stationName;
   } else {
-    title = s.city || 'Waverz//net';
+    title = s.city || stationName;
   }
   navigator.mediaSession.metadata = new MediaMetadata({
     title,
     artist: stationName,
     album: 'Waverz//net',
-    artwork: [
-      { src: '/img/favicon/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
-      { src: '/img/favicon/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
-    ],
+    artwork: stationArtwork(s),
   });
   navigator.mediaSession.playbackState = state.playing ? 'playing' : 'paused';
 }
@@ -523,7 +543,6 @@ async function attachStream(s, epoch) {
   state.attachedId = null;
 
   const wantsHlsJs = isHls(s) && (!nativeHls || isLivepeerHls(s));
-  const prevPath = state.streamPath;
 
   if (wantsHlsJs) {
     const Hls = await loadHlsLib();
@@ -539,12 +558,10 @@ async function attachStream(s, epoch) {
         state.hls.loadSource(s.url);
         return;
       }
-      // First-time (or post-native) hls.js attach. If the element was carrying
-      // a native src, release it so MSE can take over.
-      if (prevPath && prevPath !== 'hls.js') {
-        audio.removeAttribute('src');
-        audio.load();
-      }
+      // Fresh hls.js attach. attachMedia overwrites whatever src the element
+      // currently carries, so we deliberately skip removeAttribute+load even
+      // when transitioning from a native src — clearing src would empty the
+      // element for a beat and dismiss the Android MediaSession notification.
       state.streamPath = 'hls.js';
       const hls = new Hls({
         maxBufferLength: 12,
@@ -575,16 +592,11 @@ async function attachStream(s, epoch) {
     // hls.js wasn't supported — fall through to the native fallback below.
   }
 
-  // We want a native src. If hls.js was previously attached, detach it; that
-  // releases the MediaSource so we can assign a plain src to the element.
-  if (state.hls) {
-    teardownHls();
-    audio.removeAttribute('src');
-    audio.load();
-  }
-  // For native→native swaps we deliberately do NOT call removeAttribute+load
-  // here — assigning audio.src directly transitions to the new stream without
-  // the element going empty (which is what dismisses the Android notification).
+  // We want a native src. Destroy the hls.js instance if any, but leave the
+  // element's stale MediaSource blob URL in place — the next audio.src
+  // assignment overwrites it without an explicit empty-src step that would
+  // tear the MediaSession notification down.
+  if (state.hls) teardownHls();
 
   if (wantsHlsJs) {
     // Installed iOS PWAs and some WebViews report native HLS support but do
