@@ -1,4 +1,4 @@
-# Waverz//net — Apache / LiteSpeed shared-hosting config.
+# Waverz·net — Apache / LiteSpeed shared-hosting config.
 # Plain Nginx ignores this file; ask the host for equivalent rules in that case.
 
 # --- Correct MIME types ----------------------------------------------------

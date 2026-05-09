@@ -16,7 +16,7 @@ function wh_http_get(string $url, array $headers = [], int $timeoutMs = 4000): ?
                 CURLOPT_MAXREDIRS       => 3,
                 CURLOPT_CONNECTTIMEOUT  => 2,
                 CURLOPT_TIMEOUT_MS      => $timeoutMs,
-                CURLOPT_USERAGENT       => 'Waverz/1.0 (+https://waverz.net)',
+                CURLOPT_USERAGENT       => 'Waverz.net/1.0 (+https://waverz.net)',
                 CURLOPT_HTTPHEADER      => $userHeaders,
                 CURLOPT_ENCODING        => '', // libcurl auto-decompresses gzip/deflate
                 CURLOPT_SSL_VERIFYPEER  => true,
@@ -37,7 +37,7 @@ function wh_http_get(string $url, array $headers = [], int $timeoutMs = 4000): ?
         'http'  => [
             'method'  => 'GET',
             'header'  => implode("\r\n", array_merge(
-                ['User-Agent: Waverz/1.0 (+https://waverz.net)'],
+                ['User-Agent: Waverz.net/1.0 (+https://waverz.net)'],
                 $userHeaders,
             )),
             'timeout' => max(1, (int)round($timeoutMs / 1000)),

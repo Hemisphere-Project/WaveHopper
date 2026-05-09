@@ -1,4 +1,4 @@
-// Waverz//net — frontend entry.
+// Waverz·net — frontend entry.
 // Steps 1-4: shell, MP3+HLS playback with auto-skip, config mode + localStorage.
 
 const APP_VERSION = '20260509b';
@@ -256,7 +256,7 @@ function renderNow() {
     els.nowChannel.textContent = '';
     els.nowCity.textContent = '';
     els.play.textContent = PLAY;
-    document.title = 'Waverz//net';
+    document.title = 'Waverz·net';
     return;
   }
   els.nowStation.textContent = s.station;
@@ -264,7 +264,7 @@ function renderNow() {
   els.nowChannel.textContent = s.channel === 'main' ? '' : s.channel;
   els.nowCity.textContent = s.city || '';
   els.play.textContent = state.playing ? PAUSE : PLAY;
-  document.title = `Waverz//net — ${stationLabel(s)}`;
+  document.title = `Waverz·net — ${stationLabel(s)}`;
   applyAccent();
   updateMediaSession(s);
 }
@@ -302,7 +302,7 @@ function updateMediaSession(s) {
   navigator.mediaSession.metadata = new MediaMetadata({
     title,
     artist: stationName,
-    album: 'Waverz//net',
+    album: 'Waverz·net',
     artwork: stationArtwork(s),
   });
   navigator.mediaSession.playbackState = state.playing ? 'playing' : 'paused';
@@ -791,7 +791,7 @@ async function shareApp() {
   // navigator.share is mobile-first; requires a user gesture and HTTPS.
   if (navigator.share) {
     try {
-      await navigator.share({ title: 'Waverz//net', text: 'Waverz//net', url });
+      await navigator.share({ title: 'Waverz·net', text: 'Waverz·net', url });
     } catch (err) {
       // AbortError = user dismissed the sheet; anything else falls through to clipboard.
       if (err && err.name === 'AbortError') return;
