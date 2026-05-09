@@ -7,5 +7,8 @@
   "format": "mp3",
   "color": "#fff205",
   "homepage": "https://www.nts.live/",
-  "nowPlaying": { "type": "nts" }
+  "icon": "https://www.nts.live/apple-touch-icon.png",
+  "nowPlaying": {
+    "type": "nts"
+  }
 }

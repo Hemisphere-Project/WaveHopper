@@ -1,7 +1,7 @@
 // Waverz·net — frontend entry.
 // Steps 1-4: shell, MP3+HLS playback with auto-skip, config mode + localStorage.
 
-const APP_VERSION = '20260509b';
+const APP_VERSION = '20260509c';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -738,6 +738,13 @@ audio.addEventListener('play', () => { state.playing = true; renderNow(); });
 audio.addEventListener('playing', () => {
   state.autoSkipChain = 0;
   setStatus('on air');
+  // Re-assert MediaSession state once playback actually starts. On boundary
+  // crossings (hls.js ↔ native) the element passes through a brief paused
+  // state during src reassignment; re-asserting here re-anchors the Android
+  // notification to "playing" before its dismissal heuristic kicks in.
+  if ('mediaSession' in navigator) {
+    try { navigator.mediaSession.playbackState = 'playing'; } catch {}
+  }
   // Resume polling if we were paused/backgrounded and just came back.
   if (!np.timer && state.currentIndex >= 0) {
     const s = state.stations[state.currentIndex];
