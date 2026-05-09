@@ -1,4 +1,4 @@
-// Waverz.net service worker.
+// Waverz//net service worker.
 // - Pre-caches the app shell so offline launches work and station switching is instant.
 // - Code (HTML/JS/CSS/manifest): network-first so deploys are picked up on the next
 //   reload. Cache is the offline fallback only.
