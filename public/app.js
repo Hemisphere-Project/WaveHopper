@@ -1,7 +1,7 @@
 // Waverz·net — frontend entry.
 // Steps 1-4: shell, MP3+HLS playback with auto-skip, config mode + localStorage.
 
-const APP_VERSION = '20260509c';
+const APP_VERSION = '20260509d';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -284,9 +284,14 @@ const DEFAULT_ARTWORK = [
 ];
 function stationArtwork(s) {
   if (!s.icon) return DEFAULT_ARTWORK;
-  // sizes: 'any' marks the icon as scalable so the browser picks it regardless
-  // of the target slot size — matters for square station logos at unknown res.
-  return [{ src: s.icon, sizes: 'any' }];
+  // Claim multiple concrete sizes for the station icon so Chrome's size-match
+  // picker picks it for any target (96px–512px). Using `sizes: 'any'` lost to
+  // the WaveHopper logo on Android. The local 512px logo is a load-failure
+  // fallback for when the cross-origin icon can't be fetched.
+  return [
+    { src: s.icon, sizes: '96x96 128x128 192x192 256x256 384x384 512x512' },
+    { src: '/img/favicon/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
+  ];
 }
 
 function updateMediaSession(s) {

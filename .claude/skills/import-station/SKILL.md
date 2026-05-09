@@ -53,11 +53,12 @@ Always set `last_checked:` to today's ISO date when you touch a station.
    - Fill the Verification block (format, scheme, CORS, mixed-content risk)
    - In Extraction notes, write *where* the URL was hidden — this is the durable lesson
    - Bump status (`extracted` after step 6, `verified` once curl is clean)
-8. **Find a station icon for MediaSession album art.** The frontend reads an optional `icon` field per station and shows it as the lock-screen / Android notification artwork. Pick a square, ≥180px raster URL from the homepage, in priority order:
+8. **Find a station icon for MediaSession album art.** The frontend reads an optional `icon` field per station and shows it as the lock-screen / Android notification artwork. Pick a square raster URL from the homepage, in priority order:
    1. `<link rel="apple-touch-icon" ... href="...">` (typically 180×180; Apple convention) — preferred. Take the highest `sizes=` value if multiple are listed.
    2. `<link rel="icon" ... sizes="192x192" ... href="...">` or larger.
-   3. `<meta property="og:image" content="...">` — usually 1200×630 hero, often non-square; only use as a last resort.
-   Resolve relative URLs against the homepage origin. Verify with `curl -I -L <icon-url>` that it returns 200 and a `Content-Type` of `image/png`/`image/jpeg`/`image/webp`. If nothing usable exists, omit `icon` — the app falls back to the WaveHopper logo. Do **not** use favicon.ico (too small) or grab logos from third-party CDNs.
+   3. `<meta property="og:image" content="...">` — usually 1200×630 hero, often non-square; skip if non-square.
+   4. **Favicon fallback** — `<link rel="icon" href="/favicon.png">` or `/favicon.ico` at the homepage root. Even at 32×32 the lock-screen scaler tolerates it; a station-specific pixelated icon beats the generic WaveHopper logo.
+   Resolve relative URLs against the homepage origin. Verify with `curl -I -L <icon-url>` that it returns 200 and a `Content-Type` of `image/png`/`image/jpeg`/`image/webp`/`image/x-icon`/`image/vnd.microsoft.icon`. If nothing usable exists at all, omit `icon` — the app falls back to the WaveHopper logo. Do not grab logos from third-party CDNs.
 9. **Write `stations/<id>.json`** (only if verified), one file per channel. Copy the homepage from the MD frontmatter's `site:` field into `homepage`. Schema:
    ```json
    {
