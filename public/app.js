@@ -1,7 +1,7 @@
 // Waverz//net — frontend entry.
 // Steps 1-4: shell, MP3+HLS playback with auto-skip, config mode + localStorage.
 
-const APP_VERSION = '20260506f';
+const APP_VERSION = '20260509a';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -63,6 +63,11 @@ const state = {
   skin: 'dark',
   attachedId: null,      // station id whose stream is currently attached to <audio>
   streamPath: '',
+  // True while selectAndPlay is mid-flight swapping streams. The element fires
+  // a transient `pause` event during teardown; if we react to it, the UI flips
+  // to "paused" and Android pulls the MediaSession notification down for a
+  // beat before the next stream attaches.
+  switching: false,
 };
 
 // Track currentTime progression so we can detect a frozen audio element even when
@@ -488,20 +493,58 @@ function withNoCachePlaylistUrl(url) {
   return busted.toString();
 }
 
+// Soft-recovery for hls.js: on fatal MEDIA_ERROR try recoverMediaError() once,
+// otherwise treat as off-air. Pulled into its own helper so we can re-wire it
+// when reusing an hls.js instance across station switches without leaking
+// listeners (loadSource doesn't clear them).
+function wireHlsErrors(hls, Hls, epoch) {
+  // Detach the previous per-attachment handler if any — hls.js keeps internal
+  // ERROR listeners for its own retry logic, so only remove the one we added.
+  if (hls._whErrorHandler) {
+    try { hls.off(Hls.Events.ERROR, hls._whErrorHandler); } catch {}
+  }
+  let mediaRecovered = false;
+  const handler = (_evt, data) => {
+    if (epoch !== state.epoch) return;
+    if (!data.fatal) return;
+    if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !mediaRecovered) {
+      mediaRecovered = true;
+      try { hls.recoverMediaError(); return; } catch {}
+    }
+    autoSkipOnFailure('off air');
+  };
+  hls._whErrorHandler = handler;
+  hls.on(Hls.Events.ERROR, handler);
+}
+
 async function attachStream(s, epoch) {
-  // Old attachment (if any) is being torn down — invalidate the marker now so a
+  // Old attachment (if any) is being replaced — invalidate the marker now so a
   // user tap during the async setup window doesn't think we're already attached.
   state.attachedId = null;
-  state.streamPath = '';
-  teardownHls();
-  audio.removeAttribute('src');
-  audio.load();
 
   const wantsHlsJs = isHls(s) && (!nativeHls || isLivepeerHls(s));
+  const prevPath = state.streamPath;
+
   if (wantsHlsJs) {
     const Hls = await loadHlsLib();
     if (epoch !== state.epoch) return;
     if (Hls.isSupported()) {
+      // Reuse the existing hls.js instance whenever we already have one. This
+      // keeps the MediaSource bound to the element across the swap so the
+      // Android MediaSession notification doesn't blink off and back on.
+      if (state.hls) {
+        state.streamPath = 'hls.js';
+        wireHlsErrors(state.hls, Hls, epoch);
+        state.hls.stopLoad();
+        state.hls.loadSource(s.url);
+        return;
+      }
+      // First-time (or post-native) hls.js attach. If the element was carrying
+      // a native src, release it so MSE can take over.
+      if (prevPath && prevPath !== 'hls.js') {
+        audio.removeAttribute('src');
+        audio.load();
+      }
       state.streamPath = 'hls.js';
       const hls = new Hls({
         maxBufferLength: 12,
@@ -526,33 +569,34 @@ async function attachStream(s, epoch) {
       await new Promise((resolve) => hls.on(Hls.Events.MEDIA_ATTACHED, resolve));
       if (epoch !== state.epoch) return;
       hls.loadSource(s.url);
-
-      // Soft-recovery: on fatal NETWORK_ERROR try startLoad() once, on fatal MEDIA_ERROR
-      // try recoverMediaError() once, before declaring the station off-air. Avoids
-      // skipping when the upstream just hiccuped.
-      let mediaRecovered = false;
-      hls.on(Hls.Events.ERROR, (_evt, data) => {
-        if (epoch !== state.epoch) return;
-        if (!data.fatal) return;
-        if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !mediaRecovered) {
-          mediaRecovered = true;
-          try { hls.recoverMediaError(); return; } catch {}
-        }
-        autoSkipOnFailure('off air');
-      });
+      wireHlsErrors(hls, Hls, epoch);
       return;
     }
+    // hls.js wasn't supported — fall through to the native fallback below.
+  }
+
+  // We want a native src. If hls.js was previously attached, detach it; that
+  // releases the MediaSource so we can assign a plain src to the element.
+  if (state.hls) {
+    teardownHls();
+    audio.removeAttribute('src');
+    audio.load();
+  }
+  // For native→native swaps we deliberately do NOT call removeAttribute+load
+  // here — assigning audio.src directly transitions to the new stream without
+  // the element going empty (which is what dismisses the Android notification).
+
+  if (wantsHlsJs) {
+    // Installed iOS PWAs and some WebViews report native HLS support but do
+    // not expose MSE/hls.js. Fall back to native playback instead of
+    // surfacing a generic stream error, while still cache-busting Livepeer
+    // manifests.
+    state.streamPath = 'native-hls-fallback';
+    audio.src = withNoCachePlaylistUrl(s.url);
   } else {
     state.streamPath = isHls(s) ? 'native-hls' : 'direct';
     audio.src = s.url;
-    return;
   }
-
-  // Installed iOS PWAs and some WebViews report native HLS support but do not
-  // expose MSE/hls.js. Fall back to native playback instead of surfacing a
-  // generic stream error, while still cache-busting Livepeer manifests.
-  state.streamPath = 'native-hls-fallback';
-  audio.src = isHls(s) ? withNoCachePlaylistUrl(s.url) : s.url;
 }
 
 async function selectAndPlay(index, { userInitiated = false } = {}) {
@@ -566,6 +610,19 @@ async function selectAndPlay(index, { userInitiated = false } = {}) {
   lastTimeAt = 0;
   // New station: drop stale metadata + abort any in-flight fetch from the previous one.
   stopNowPlayingPoll({ clearUi: true });
+
+  // Hand the new metadata to the OS before we tear down the old stream and
+  // hold playbackState at 'playing' across the swap. On Android this keeps
+  // the MediaSession notification visible (with the new title) instead of
+  // dismiss-and-reappear when the audio element goes empty.
+  const wasPlaying = state.playing;
+  state.switching = true;
+  if ('mediaSession' in navigator) {
+    updateMediaSession(s);
+    if (wasPlaying) {
+      try { navigator.mediaSession.playbackState = 'playing'; } catch {}
+    }
+  }
 
   setStatus('connecting…');
   renderNow();
@@ -595,6 +652,8 @@ async function selectAndPlay(index, { userInitiated = false } = {}) {
     } else {
       autoSkipOnFailure('stream error');
     }
+  } finally {
+    if (myEpoch === state.epoch) state.switching = false;
   }
   renderNow();
 }
@@ -667,6 +726,9 @@ audio.addEventListener('playing', () => {
   }
 });
 audio.addEventListener('pause', () => {
+  // Ignore the transient pause that fires while selectAndPlay is swapping streams.
+  // Reacting would blink "paused" into the UI and drop the Android notification.
+  if (state.switching) return;
   state.playing = false;
   stopNowPlayingPoll();
   renderNow();
@@ -676,6 +738,7 @@ audio.addEventListener('pause', () => {
 audio.addEventListener('waiting', () => { if (state.mode === 'player') setStatus('buffering…'); });
 audio.addEventListener('error', () => {
   if (state.hls) return;
+  if (state.switching) return; // teardown can fire a benign error mid-swap
   state.playing = false;
   autoSkipOnFailure('stream error');
 });
