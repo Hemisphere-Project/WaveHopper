@@ -232,7 +232,14 @@ function renderSkinRow() {
 
 function teardownHls() {
   if (state.hls) {
-    try { state.hls.destroy(); } catch {}
+    // Deliberately NOT calling destroy() here. hls.js's destroy() invokes
+    // detachMedia(), which has BufferController call removeAttribute('src') +
+    // load() on the element — that drops networkState through NETWORK_NO_SOURCE
+    // for a tick, and Android's MediaSession service uses exactly that
+    // transition to dismiss the notification mid-swap. stopLoad() halts the
+    // network activity; the next audio.src assignment displaces the blob URL,
+    // and the orphaned Hls instance + MediaSource get GC'd shortly after.
+    try { state.hls.stopLoad(); } catch {}
     state.hls = null;
   }
 }
@@ -491,7 +498,7 @@ function toggleStation(i) {
 function setMode(mode) {
   state.mode = mode;
   document.body.classList.toggle('config-mode', mode === 'config');
-  els.title.textContent = mode === 'config' ? 'CONFIG' : 'WAVERZ//NET';
+  els.title.textContent = mode === 'config' ? 'CONFIG' : 'WAVERZ·NET';
   els.modeToggle.textContent = mode === 'config' ? CHECK : GEAR;
   els.modeToggle.setAttribute('aria-label', mode === 'config' ? 'Done' : 'Settings');
   els.listLabel.textContent = mode === 'config' ? 'ENABLE / DISABLE' : 'STATIONS';
