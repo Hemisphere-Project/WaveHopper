@@ -1,7 +1,7 @@
 // Waverz·net — frontend entry.
 // Steps 1-4: shell, MP3+HLS playback with auto-skip, config mode + localStorage.
 
-const APP_VERSION = '20260509f';
+const APP_VERSION = '20260509g';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -279,9 +279,18 @@ function renderNow() {
 // Default artwork — used when a station has no `icon` field. Listed in two
 // sizes so Chrome can pick whichever matches its lock-screen target.
 const DEFAULT_ARTWORK = [
-  { src: '/img/favicon/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
-  { src: '/img/favicon/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
+  { src: `/img/favicon/android-chrome-192x192.png?v=${APP_VERSION}`, sizes: '192x192', type: 'image/png' },
+  { src: `/img/favicon/android-chrome-512x512.png?v=${APP_VERSION}`, sizes: '512x512', type: 'image/png' },
 ];
+// Append the build version to same-origin icon paths so the OS-level
+// MediaSession artwork cache picks up new files when we re-bake them.
+// Without this Android keeps serving the previously-cached image bytes for
+// the same URL, even after a deploy and SW cache flush.
+function bustIfLocal(src) {
+  if (typeof src !== 'string') return src;
+  if (src.startsWith('/')) return `${src}${src.includes('?') ? '&' : '?'}v=${APP_VERSION}`;
+  return src;
+}
 function stationArtwork(s) {
   if (!s.icon) return DEFAULT_ARTWORK;
   // Claim multiple concrete sizes for the station icon so Chrome's size-match
@@ -289,8 +298,8 @@ function stationArtwork(s) {
   // the WaveHopper logo on Android. The local 512px logo is a load-failure
   // fallback for when the cross-origin icon can't be fetched.
   return [
-    { src: s.icon, sizes: '96x96 128x128 192x192 256x256 384x384 512x512' },
-    { src: '/img/favicon/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
+    { src: bustIfLocal(s.icon), sizes: '96x96 128x128 192x192 256x256 384x384 512x512' },
+    { src: `/img/favicon/android-chrome-512x512.png?v=${APP_VERSION}`, sizes: '512x512', type: 'image/png' },
   ];
 }
 
