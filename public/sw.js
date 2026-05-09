@@ -14,7 +14,7 @@
 // Bump APP_VERSION on each deploy that changes the shell so installed PWAs fetch a
 // fresh sw.js URL and seed a new cache namespace.
 
-const APP_VERSION = '20260509d';
+const APP_VERSION = '20260509e';
 
 const CACHE = `wh-${APP_VERSION}`;
 
@@ -40,6 +40,10 @@ const SWR_ASSETS = new Set([
   '/img/favicon/favicon-32x32.png',
   '/img/favicon/favicon-16x16.png',
   '/img/favicon/favicon.ico',
+  // Locally-bundled station icons (sites that don't expose a usable square logo).
+  '/img/stations/thelot.png',
+  '/img/stations/kiosk.png',
+  '/img/stations/lyl.png',
 ]);
 
 // Critical install set — install fails if any of these are missing. We prefetch

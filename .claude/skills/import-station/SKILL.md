@@ -56,9 +56,15 @@ Always set `last_checked:` to today's ISO date when you touch a station.
 8. **Find a station icon for MediaSession album art.** The frontend reads an optional `icon` field per station and shows it as the lock-screen / Android notification artwork. Pick a square raster URL from the homepage, in priority order:
    1. `<link rel="apple-touch-icon" ... href="...">` (typically 180×180; Apple convention) — preferred. Take the highest `sizes=` value if multiple are listed.
    2. `<link rel="icon" ... sizes="192x192" ... href="...">` or larger.
-   3. `<meta property="og:image" content="...">` — usually 1200×630 hero, often non-square; skip if non-square.
-   4. **Favicon fallback** — `<link rel="icon" href="/favicon.png">` or `/favicon.ico` at the homepage root. Even at 32×32 the lock-screen scaler tolerates it; a station-specific pixelated icon beats the generic WaveHopper logo.
-   Resolve relative URLs against the homepage origin. Verify with `curl -I -L <icon-url>` that it returns 200 and a `Content-Type` of `image/png`/`image/jpeg`/`image/webp`/`image/x-icon`/`image/vnd.microsoft.icon`. If nothing usable exists at all, omit `icon` — the app falls back to the WaveHopper logo. Do not grab logos from third-party CDNs.
+   3. `<meta property="og:image" content="...">` — usually 1200×630 hero. Useful even when non-square: center-crop it to a square locally (see local-bundle path below).
+   4. **Favicon** — `<link rel="icon" href="/favicon.png">` or `/favicon.ico` at the homepage root.
+   Resolve relative URLs against the homepage origin. Verify with `curl -I -L <icon-url>` that it returns 200 and a `Content-Type` of `image/png`/`image/jpeg`/`image/webp`/`image/x-icon`/`image/vnd.microsoft.icon`.
+
+   **When to use the URL directly vs. bundle locally.** Chrome's MediaSession art picker is picky:
+   - Use the remote URL directly **only** if the source is a square PNG/JPEG/WebP at ≥128×128. Most apple-touch-icons (180×180 PNG) qualify.
+   - **Bundle locally** if the source is `.ico`, `<128px`, or non-square (og:image hero). Chrome won't decode `.ico` for MediaSession and downscales tiny PNGs to nothing. Process the source with PIL: pick the largest frame from `.ico`, center-crop non-square images, resize to 192×192 with `Image.LANCZOS`, save as `public/img/stations/<id>.png`, and set `"icon": "/img/stations/<id>.png"` (relative path served same-origin). Add the new path to `SWR_ASSETS` in `public/sw.js` so it caches with the rest of the app shell.
+
+   If nothing usable exists at all, omit `icon` — the app falls back to the WaveHopper logo. Do not grab logos from third-party CDNs.
 9. **Write `stations/<id>.json`** (only if verified), one file per channel. Copy the homepage from the MD frontmatter's `site:` field into `homepage`. Schema:
    ```json
    {

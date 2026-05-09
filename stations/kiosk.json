@@ -7,7 +7,7 @@
   "format": "aac",
   "color": "#8a8a8a",
   "homepage": "https://www.kioskradio.com",
-  "icon": "https://www.kioskradio.com/favicon.png",
+  "icon": "/img/stations/kiosk.png",
   "nowPlaying": {
     "type": "airtime",
     "endpoint": "https://kioskradiobxl.airtime.pro/api/live-info-v2"

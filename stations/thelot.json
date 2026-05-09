@@ -7,7 +7,7 @@
   "format": "hls",
   "color": "#ff6600",
   "homepage": "https://www.thelotradio.com/",
-  "icon": "https://www.thelotradio.com/favicon.ico",
+  "icon": "/img/stations/thelot.png",
   "nowPlaying": {
     "type": "thelot-html",
     "endpoint": "https://www.thelotradio.com/"
