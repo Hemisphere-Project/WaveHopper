@@ -14,6 +14,8 @@
 #include "wh_wifi.h"
 #include "audio_out.h"
 #include "catalog.h"
+#include "content_sync.h"
+#include "fw_update.h"
 #include "net.h"
 #include "now_playing.h"
 #include "player.h"
@@ -40,6 +42,7 @@ void setup() {
   if (!LittleFS.begin(true, "/littlefs", 10, "littlefs")) {
     ui::bootLine("FS mount failed");
   }
+  content_sync::wipeStagingOnBoot();
 
   ui::bootLine("wifi: connecting ...");
   while (!whwifi::connect(settings, WH_WIFI_TIMEOUT_MS)) {
@@ -53,7 +56,11 @@ void setup() {
   net::setClockValid(clockOk);
   ui::bootLine(clockOk ? "clock: ok" : "clock: FAILED (no sync/ota/metadata)");
 
-  // M3: content sync + firmware OTA check run here, before playback starts.
+  ui::bootLine("content: checking ...");
+  content_sync::run();  // Unchanged/Skipped/Failed all fall through — the
+                        // local pack (or a later sweep) keeps us playing
+  ui::bootLine("firmware: checking ...");
+  fw_update::checkAndUpdate();  // reboots on success
 
   if (!catalog::load()) {
     ui::bootLine("no content pack!");
