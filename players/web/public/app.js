@@ -1,7 +1,7 @@
 // Waverz·net — frontend entry.
 // Steps 1-4: shell, MP3+HLS playback with auto-skip, config mode + localStorage.
 
-const APP_VERSION = '20260704c';
+const APP_VERSION = '20260704d';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -170,6 +170,10 @@ function isMonoSkin() {
   return !!(s && s.mono);
 }
 function stationAccent() {
+  // The catalog's per-station color is the cross-player identity (same hue on
+  // the M5 device); the positional palette is only a fallback.
+  const s = state.stations[state.currentIndex];
+  if (s && /^#[0-9a-f]{6}$/i.test(s.color || '')) return s.color;
   return STATION_ACCENTS[state.currentIndex % STATION_ACCENTS.length];
 }
 function applyAccent() {

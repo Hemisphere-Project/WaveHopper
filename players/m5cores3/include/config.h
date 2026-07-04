@@ -62,12 +62,12 @@
 // realtime, so without a head start every wifi hiccup is an audible gap. We
 // hold the decoder suspended after connect until this many bytes buffered (or
 // the wait cap), trading tune latency for a persistent jitter cushion.
-#define WH_PREBUFFER_BYTES    98304  // ~4 s at 192 kbps
-#define WH_PREBUFFER_WAIT_MS  4500   // cap on the buffering hold
+#define WH_PREBUFFER_BYTES    163840  // ~7 s at 192 kbps
+#define WH_PREBUFFER_WAIT_MS  6000    // cap on the buffering hold
 // Manual station surfing wants fast audio feedback over a deep cushion —
 // short hold; the depleted-cushion reconnect tops it up later if needed.
-#define WH_PREBUFFER_FAST_BYTES    24576
-#define WH_PREBUFFER_FAST_WAIT_MS  1200
+#define WH_PREBUFFER_FAST_BYTES    49152
+#define WH_PREBUFFER_FAST_WAIT_MS  2000
 // Depleted-cushion recovery: the failure mode is a sawtooth — buffer dips
 // near zero (audible gap) and partially recovers, over and over, never
 // refilling the cushion (paced servers) or stuck on a slow CDN edge. Trigger

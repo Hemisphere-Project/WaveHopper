@@ -219,30 +219,21 @@ void loop() {
                       ? catalog::at(snap.stationIndex).id
                       : String());
 
-  if (browseIdx >= 0 && browseIdx != snap.stationIndex) {
-    // Preview card for the browsed station (not yet tuned).
-    static int lastBrowseRendered = -1;
-    if (browseIdx != lastBrowseRendered) {
-      lastBrowseRendered = browseIdx;
-      PlayerSnapshot preview = snap;
-      preview.stationIndex = browseIdx;
-      preview.state = PlayerState::Tuning;
-      preview.streamTitle[0] = '\0';
-      ui::render(preview, NowPlaying{});
-      ui::stationToast(browseIdx);  // keep the list on top of the fresh card
-    }
-  } else if ((snap.generation != lastRenderedGen || np.generation != lastNpGen) &&
-             snap.stationIndex >= 0) {
+  // While browsing, the toast IS the feedback — rebuilding the card per step
+  // (PNG decode from flash each time) caused visible input hitches.
+  if (browseIdx < 0 &&
+      (snap.generation != lastRenderedGen || np.generation != lastNpGen) &&
+      snap.stationIndex >= 0) {
     lastRenderedGen = snap.generation;
     lastNpGen = np.generation;
     ui::render(snap, np);
   }
 
   static uint32_t gaugeAt = 0;
-  if (snap.state == PlayerState::Playing && browseIdx < 0 && millis() > gaugeAt) {
+  if (browseIdx < 0 && millis() > gaugeAt) {
     gaugeAt = millis() + 1000;
-    ui::bufferGauge(snap.buffered, snap.bufferTarget);
-    ui::wifiMeter(WiFi.RSSI());
+    if (snap.state == PlayerState::Playing) ui::bufferGauge(snap.buffered, snap.bufferTarget);
+    ui::wifiMeter(0);  // reads RSSI itself; visible in every state incl. tuning
   }
 
   ui::tick();

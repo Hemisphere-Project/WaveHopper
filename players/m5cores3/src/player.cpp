@@ -192,8 +192,10 @@ void begin(AudioProfile profile, uint8_t volume, int firstStationIndex) {
 
   g_cmdQueue = xQueueCreate(8, sizeof(Cmd));
   // 10 KB: connecttohost runs a TLS handshake (unverified, but still mbedtls)
-  // on this stack.
-  xTaskCreatePinnedToCore(playerTask, "wh_player", 10240, nullptr, 2, nullptr, 1);
+  // on this stack. Pinned to core 0: during the prebuffer burst the stream's
+  // TLS decrypt saturates this task at prio 2 — on core 1 that froze the UI
+  // task for the whole buffering window.
+  xTaskCreatePinnedToCore(playerTask, "wh_player", 10240, nullptr, 2, nullptr, 0);
 
   if (firstStationIndex >= 0 && firstStationIndex < (int)catalog::count()) {
     startTune(firstStationIndex, 1);

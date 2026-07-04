@@ -107,6 +107,21 @@ String sanitizeForFont(const String& in) {
   return out;
 }
 
+// RSSI bars, drawable into the card canvas or straight onto the display.
+void drawMeterInto(LovyanGFX& g) {
+  int rssi = WiFi.RSSI();
+  int bars = rssi >= -55 ? 4 : rssi >= -65 ? 3 : rssi >= -72 ? 2 : rssi >= -80 ? 1 : 0;
+  uint16_t col = bars >= 3   ? rgb565(0x14, 0x66, 0x2e)
+                 : bars == 2 ? rgb565(0x66, 0x4d, 0x12)
+                             : rgb565(0x70, 0x16, 0x16);
+  int x0 = W - 30, y0 = 10;
+  g.fillRect(x0 - 2, y0 - 1, 26, 14, COL_BG);
+  for (int b = 0; b < 4; ++b) {
+    int h = 3 + b * 3;
+    g.fillRect(x0 + b * 6, y0 + 12 - h, 4, h, b < bars ? col : COL_LINE);
+  }
+}
+
 String effectiveTitle() {
   if (!g_np.title.isEmpty()) return sanitizeForFont(g_np.title);
   // ICY fallback — some stations send a bare " - " separator as the title.
@@ -201,13 +216,16 @@ void buildCard() {
   g_card.setTextSize(1);
   g_card.setTextColor(COL_FG, COL_BG);
   String name = s.name;
+  int subY;
   if (g_card.textWidth(name.c_str()) <= W - TX - 8) {
     g_card.drawString(name.c_str(), TX, 34);
+    subY = 66;  // city rides right under the name, subtitle-style
   } else {
     int cut = name.lastIndexOf(' ', 10);
     if (cut <= 0) cut = 10;
     g_card.drawString(name.substring(0, cut).c_str(), TX, 22);
     g_card.drawString(name.substring(cut + (name[cut] == ' ' ? 1 : 0)).c_str(), TX, 56);
+    subY = 90;
   }
   g_card.setFont(&F_SMALL);
   g_card.setTextColor(s.color565, COL_BG);
@@ -215,7 +233,9 @@ void buildCard() {
   String sub = (s.channel.isEmpty() || s.channel == "main")
                    ? s.city
                    : s.channel + " . " + s.city;
-  g_card.drawString(sub.c_str(), TX, 96);
+  g_card.drawString(sub.c_str(), TX, subY);
+
+  drawMeterInto(g_card);  // RSSI bars live in the card — never blink away
 
   // Status / subtitle zone under the marquee strip.
   g_card.setFont(&F_MED);
@@ -541,7 +561,7 @@ uint8_t settingsBrightness() { return g_setBright; }
 
 void stationToast(int currentIndex) {
   if (!g_haveCard) return;
-  g_overlayUntil = millis() + 1500;
+  g_overlayUntil = millis() + 1200;
   drawToast(currentIndex);
 }
 
@@ -556,28 +576,19 @@ void bufferGauge(uint32_t buffered, uint32_t target) {
   if (g_settingsOpen || !g_haveCard || millis() < g_overlayUntil) return;
   if (!target) return;
   int w = std::min<uint32_t>(W, (uint64_t)buffered * W / target);
-  // Muted tones — informative without competing with the station accent.
-  uint16_t col = (buffered * 2 >= target)   ? rgb565(0x14, 0x66, 0x2e)
-                 : (buffered * 5 >= target) ? rgb565(0x66, 0x4d, 0x12)
-                                            : rgb565(0x70, 0x16, 0x16);
+  // Whisper-quiet tones — a glance instrument, not a design element.
+  uint16_t col = (buffered * 2 >= target)   ? rgb565(0x0a, 0x38, 0x1a)
+                 : (buffered * 5 >= target) ? rgb565(0x38, 0x2c, 0x0a)
+                                            : rgb565(0x40, 0x0c, 0x0c);
   M5.Display.fillRect(0, H - 2, w, 2, col);  // bottom edge — clear of the accent bar
   M5.Display.fillRect(w, H - 2, W - w, 2, COL_BG);
 }
 
 void wifiMeter(int rssi) {
+  (void)rssi;  // meter reads WiFi.RSSI() itself; kept for API stability
   if (g_settingsOpen || !g_haveCard || millis() < g_overlayUntil) return;
-  int bars = rssi >= -55 ? 4 : rssi >= -65 ? 3 : rssi >= -72 ? 2 : rssi >= -80 ? 1 : 0;
-  uint16_t col = bars >= 3   ? rgb565(0x14, 0x66, 0x2e)
-                 : bars == 2 ? rgb565(0x66, 0x4d, 0x12)
-                             : rgb565(0x70, 0x16, 0x16);
-  int x0 = W - 30, y0 = 10;
   M5.Display.startWrite();
-  M5.Display.fillRect(x0 - 2, y0 - 1, 26, 14, COL_BG);
-  for (int b = 0; b < 4; ++b) {
-    int h = 3 + b * 3;
-    uint16_t c = b < bars ? col : COL_LINE;
-    M5.Display.fillRect(x0 + b * 6, y0 + 12 - h, 4, h, c);
-  }
+  drawMeterInto(M5.Display);
   M5.Display.endWrite();
 }
 
