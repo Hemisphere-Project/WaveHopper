@@ -54,6 +54,12 @@
 #define WH_WIFI_TIMEOUT_MS    30000  // boot wifi connect budget
 #define WH_SNTP_TIMEOUT_MS    10000  // clock sync budget (TLS needs wall time)
 #define WH_TUNE_TIMEOUT_MS    15000  // connect→codec deadline per attempt
+// Startup cushion: most stations (Icecast/Airtime/AzuraCast) pace at exactly
+// realtime, so without a head start every wifi hiccup is an audible gap. We
+// hold the decoder suspended after connect until this many bytes buffered (or
+// the wait cap), trading tune latency for a persistent jitter cushion.
+#define WH_PREBUFFER_BYTES    49152  // ~2 s at 192 kbps
+#define WH_PREBUFFER_WAIT_MS  3000   // cap on the buffering hold
 #define WH_STALL_MS           20000  // PLAYING with empty buffer this long = dead
 #define WH_ALLFAIL_SWEEP_MS   60000  // retry period after every station failed
 #define WH_NP_POLL_MS         30000  // now-playing poll while playing

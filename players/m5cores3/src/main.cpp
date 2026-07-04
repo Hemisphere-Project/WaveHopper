@@ -1,113 +1,108 @@
-// WaveHopper CoreS3 — M0 audio spike, DIAGNOSTIC build.
+// WaveHopper CoreS3 firmware — boot sequencer + input/UI loop.
 //
-// Phase 1: prove the amp hardware via M5Unified's own path (M5.Speaker tone),
-//          dumping the amp register state it leaves behind.
-// Phase 2: hand I2S to ESP32-audioI2S, re-init the amp ourselves, stream, and
-//          dump the same registers + AW88298 SYSST (does the amp see BCLK?).
+// Boot: display → FS → NVS → wifi → catalog → audio profile → player task →
+// auto-play. Content sync + firmware OTA slot in before catalog load (M3).
+// Playback policy: no play/pause — the supervisor keeps something playing
+// (retry once → skip → sweep). Controls: tap left/right = prev/next station,
+// bezel BtnA/BtnC = volume down/up. Settings overlay lands in M4.
 
 #include <M5Unified.h>
-#include <Audio.h>
 #include <LittleFS.h>
 
 #include "config.h"
 #include "wh_nvs.h"
 #include "wh_wifi.h"
 #include "audio_out.h"
+#include "catalog.h"
+#include "player.h"
+#include "ui.h"
 
-static const char* kSpikeUrl = "https://stream-relay-geo.ntslive.net/stream";
-
-static Audio audio(I2S_NUM_1);  // same port M5Unified drives the amp with
 static WhSettings settings;
 static AudioProfile profile = AudioProfile::Internal;
-static uint32_t lastRate = 0;
-
-static uint16_t awRead(uint8_t reg) {
-  uint8_t buf[2] = {0, 0};
-  M5.In_I2C.readRegister(WH_I2C_AW88298, reg, buf, 2, 400000);
-  return (uint16_t(buf[0]) << 8) | buf[1];  // print both orders below anyway
-}
-
-static void dumpAmp(const char* tag) {
-  Serial.printf("[diag:%s] AW88298 id=%04x sysst=%04x sysctrl(04)=%04x "
-                "sysctrl2(05)=%04x i2sctrl(06)=%04x hagc(0C)=%04x\n",
-                tag, awRead(0x00), awRead(0x01), awRead(0x04), awRead(0x05),
-                awRead(0x06), awRead(0x0C));
-  uint8_t aw9523_02 = 0;
-  M5.In_I2C.readRegister(WH_I2C_AW9523, 0x02, &aw9523_02, 1, 400000);
-  Serial.printf("[diag:%s] AW9523 reg02=%02x (bit2=%d)\n", tag, aw9523_02,
-                (aw9523_02 >> 2) & 1);
-}
-
-static void onAudioEvent(Audio::msg_t m) {
-  if (m.e == Audio::evt_info || m.e == Audio::evt_eof)
-    log_i("[audio] %s", m.msg ? m.msg : "");
-}
+static uint32_t lastRenderedGen = 0;
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(115200);  // HWCDC: Serial.print* needs this, log_* doesn't
   auto cfg = M5.config();
-  cfg.internal_spk = true;  // phase 1: let M5Unified own the amp for the beep
-  cfg.internal_mic = false;
+  cfg.internal_spk = false;  // audio_out owns the amp — keep M5.Speaker off I2S
+  cfg.internal_mic = false;  // keep ES7210 off the shared pins
   M5.begin(cfg);
-  M5.Display.setTextSize(2);
-  M5.Display.setTextScroll(true);
-  M5.Display.println("M0 DIAG");
-  delay(1000);
 
-  dumpAmp("boot");
-
-  Serial.println("[diag] phase1: M5.Speaker tone 440Hz 2s");
-  M5.Display.println("beep test...");
-  M5.Speaker.setVolume(160);
-  M5.Speaker.tone(440, 2000);
-  delay(500);
-  dumpAmp("m5spk-on");   // register state while M5Unified's init is live
-  delay(2000);
-  M5.Speaker.end();       // fires the disable cb (amp off, rail off)
-  dumpAmp("m5spk-off");
-
-  Serial.println("[diag] phase2: audioI2S path");
-  M5.Display.println("audioI2S test...");
   whnvs::load(settings);
+  ui::begin(settings.brightness);
+  ui::bootLine("WaveHopper  fw %s (build %d)", WH_FW_VERSION, WH_FW_BUILD);
 
-  if (!whwifi::connect(settings, WH_WIFI_TIMEOUT_MS)) {
-    Serial.println("[diag] wifi FAILED");
-    return;
+  // Partition is labeled "littlefs" (esp_littlefs defaults to "spiffs").
+  if (!LittleFS.begin(true, "/littlefs", 10, "littlefs")) {
+    ui::bootLine("FS mount failed");
   }
 
-  audio_out::init(AudioProfile::Internal, 44100);
-  dumpAmp("wh-init");     // compare against m5spk-on
+  ui::bootLine("wifi: connecting ...");
+  while (!whwifi::connect(settings, WH_WIFI_TIMEOUT_MS)) {
+    ui::bootLine("wifi failed - retrying (check secrets.h?)");
+    delay(5000);
+  }
+  ui::bootLine("wifi: %s ok", settings.ssid.c_str());
 
-  Audio::audio_info_callback = onAudioEvent;
-  AudioPins p = audio_out::pins(profile);
-  bool pinoutOk = audio.setPinout(p.bclk, p.lrck, p.dout, p.mclk);
-  Serial.printf("[diag] setPinout(%d,%d,%d,%d) -> %s\n", p.bclk, p.lrck, p.dout,
-                p.mclk, pinoutOk ? "OK" : "FAILED");
-  // Pin the I2S output clock at 48 kHz (lib resamples): the AW88298 never
-  // locks on the ESP32's fractional 44.1 kHz BCLK, and a constant clock also
-  // avoids the amp-faulting I2S reconfig on stream-rate changes.
-  audio.setOutput48KHz(true);
-  audio.setVolume(21);    // max soft volume for the test
-  audio.connecttohost(kSpikeUrl);
+  // M3: content sync + firmware OTA check run here, before playback starts.
+
+  if (!catalog::load()) {
+    ui::bootLine("no content pack!");
+    ui::bootLine("run: tools/build.py --seed-m5 && pio run -t uploadfs");
+    return;  // loop() idles; device needs content to be a radio
+  }
+  ui::bootLine("catalog: %u stations (content %.12s)", catalog::count(),
+               catalog::contentVersion().c_str());
+
+  bool fellBack = false;
+  profile = audio_out::resolve(settings.audioOut, fellBack);
+  if (!audio_out::init(profile, 48000)) {
+    profile = AudioProfile::Internal;
+    audio_out::init(profile, 48000);
+    fellBack = true;
+  }
+  ui::bootLine("audio: %s%s", audio_out::name(profile), fellBack ? " (fallback)" : "");
+
+  int start = catalog::indexOfId(settings.lastStation);
+  player::begin(profile, settings.volume, start >= 0 ? start : 0);
 }
 
 void loop() {
   M5.update();
-  audio.loop();
+  player::tick();
 
-  // Output clock is pinned at 48 kHz — the amp keeps one config; the hook only
-  // runs as fault recovery (SWS check) now, driven by the 5 s beat below.
-  lastRate = audio.getSampleRate();
-
-  static uint32_t nextBeat = 0;
-  if (millis() > nextBeat) {
-    nextBeat = millis() + 5000;
-    Serial.printf("[m0] running=%d buf=%lu rate=%lu\n", audio.isRunning(),
-                  (unsigned long)audio.inBufferFilled(), (unsigned long)lastRate);
-    if (audio.isRunning() && audio.inBufferFilled() > 0) {
-      dumpAmp("streaming");
-      audio_out::onSampleRate(profile, 48000);  // recovers the amp if faulted
+  // Touch: left/right half tap = prev/next; horizontal flick = next/prev
+  // (flick left → next, mirroring the webapp swipe).
+  auto t = M5.Touch.getDetail();
+  if (t.y < 240) {
+    if (t.wasFlicked() && abs(t.distanceX()) > 30 &&
+        abs(t.distanceX()) > abs(t.distanceY())) {
+      log_i("[input] flick dx=%d", t.distanceX());
+      if (t.distanceX() < 0) player::next();
+      else player::prev();
+    } else if (t.wasClicked()) {
+      log_i("[input] tap x=%d", t.x);
+      if (t.x < 160) player::prev();
+      else player::next();
     }
   }
-  vTaskDelay(1);
+  // Bezel buttons: A = vol down, C = vol up.
+  bool volChanged = false;
+  PlayerSnapshot snap = player::snapshot();
+  uint8_t vol = snap.volume;
+  if (M5.BtnA.wasClicked() && vol > 0)  { vol--; volChanged = true; }
+  if (M5.BtnC.wasClicked() && vol < 21) { vol++; volChanged = true; }
+  if (volChanged) {
+    player::setVolume(vol);
+    ui::volumeOverlay(vol);
+  }
+
+  snap = player::snapshot();
+  if (snap.generation != lastRenderedGen && snap.stationIndex >= 0) {
+    lastRenderedGen = snap.generation;
+    ui::render(snap);
+  }
+  ui::tick();
+
+  vTaskDelay(pdMS_TO_TICKS(5));
 }

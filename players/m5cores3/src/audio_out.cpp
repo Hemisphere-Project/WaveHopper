@@ -128,7 +128,7 @@ void onSampleRate(AudioProfile p, uint32_t rate) {
   // the full enable sequence, then wait for the switcher (SWS, bit8).
   uint16_t sysst = aw88298Read(0x01);
   if ((sysst & 0x0100) == 0) {
-    log_i("AW88298 faulted after clock change (sysst=%04x) — power cycling", sysst);
+    log_i("AW88298 faulted (sysst=%04x) — power cycling", sysst);
     internalAmpDisable();
     vTaskDelay(pdMS_TO_TICKS(20));
     internalAmpEnable(rate);
@@ -136,10 +136,16 @@ void onSampleRate(AudioProfile p, uint32_t rate) {
     while ((aw88298Read(0x01) & 0x0100) == 0 && millis() < deadline) {
       vTaskDelay(pdMS_TO_TICKS(10));
     }
-  } else {
-    aw88298Write(0x06, aw88298RateIndex(rate) | kAmpI2sCtrlBase);
+    log_i("AW88298 recovered (sysst=%04x)", aw88298Read(0x01));
+    return;
   }
-  log_i("AW88298 rate set %lu Hz (sysst=%04x)", (unsigned long)rate, aw88298Read(0x01));
+  // Healthy: touch I2SCTRL only when the target actually changed — rewriting
+  // a live amp register glitches the output audibly.
+  uint16_t want = aw88298RateIndex(rate) | kAmpI2sCtrlBase;
+  if (aw88298Read(0x06) != want) {
+    aw88298Write(0x06, want);
+    log_i("AW88298 rate set %lu Hz", (unsigned long)rate);
+  }
 }
 
 }  // namespace audio_out
