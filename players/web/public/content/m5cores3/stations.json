@@ -15,6 +15,21 @@
     "icon": "icons/dublab.png"
   },
   {
+    "id": "thelot",
+    "station": "The Lot Radio",
+    "channel": "main",
+    "city": "Brooklyn",
+    "url": "https://livepeercdn.studio/hls/85c28sa2o8wppm58/index.m3u8?video=false",
+    "format": "hls",
+    "color": "#2aeb62",
+    "homepage": "https://www.thelotradio.com/",
+    "nowPlaying": {
+      "type": "thelot-html",
+      "endpoint": "https://www.thelotradio.com/"
+    },
+    "icon": "icons/thelot-alt.png"
+  },
+  {
     "id": "kiosk",
     "station": "Kiosk Radio",
     "channel": "",

@@ -67,3 +67,12 @@ offline. The URL itself is correct (HTTP 200, audio/HLS content-type, CORS `*`,
 follows redirects + tokenized variant fine, but ESP32-audioI2S's TS demuxer
 fails on Livepeer's segment muxing: "PES not found" (Audio.cpp ts_parsePacket).
 Web-only until fixed upstream — file with schreibfaul1 using this repro.
+
+## RESOLVED (2026-07-05): device playback works with a forked lib
+
+Root cause found via on-device TS diagnostics: Livepeer emits AFC=3
+adaptation-field-only packets on the audio PID that stock ESP32-audioI2S
+3.4.6 reads out of bounds ("PES not found"). Fixed in the vendored fork
+(players/m5cores3/lib/ESP32-audioI2S, see WAVEHOPPER-PATCHES.md). m5Url set
+to the ?video=false master. Note The Lot is often idle (physical-space
+station) — expect auto-skip outside broadcast hours.
