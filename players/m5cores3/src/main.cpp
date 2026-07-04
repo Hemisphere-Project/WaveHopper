@@ -116,11 +116,11 @@ void loop() {
   if (t.y < 240) {
     if (t.wasFlicked() && abs(t.distanceX()) > 30 &&
         abs(t.distanceX()) > abs(t.distanceY())) {
-      log_i("[input] flick dx=%d", t.distanceX());
+      log_d("[input] flick dx=%d", t.distanceX());
       if (t.distanceX() < 0) player::next();
       else player::prev();
     } else if (t.wasClicked()) {
-      log_i("[input] tap x=%d", t.x);
+      log_d("[input] tap x=%d", t.x);
       if (t.x < 160) player::prev();
       else player::next();
     }

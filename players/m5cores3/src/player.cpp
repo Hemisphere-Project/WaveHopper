@@ -181,7 +181,9 @@ void begin(AudioProfile profile, uint8_t volume, int firstStationIndex) {
   if (!g_decodeTask) log_e("decode task not found — prebuffering disabled");
 
   g_cmdQueue = xQueueCreate(8, sizeof(Cmd));
-  xTaskCreatePinnedToCore(playerTask, "wh_player", 8192, nullptr, 2, nullptr, 1);
+  // 10 KB: connecttohost runs a TLS handshake (unverified, but still mbedtls)
+  // on this stack.
+  xTaskCreatePinnedToCore(playerTask, "wh_player", 10240, nullptr, 2, nullptr, 1);
 
   if (firstStationIndex >= 0 && firstStationIndex < (int)catalog::count()) {
     startTune(firstStationIndex, 1);
@@ -274,13 +276,12 @@ void tick() {
         g_lastHealth = now;
         audio_out::onSampleRate(g_profile, 48000);  // SWS fault self-heal
       }
-      {  // TEMP(M1 debug): 1 Hz pipeline stats while chasing audio gaps
+      {  // pipeline stats — visible when built with CORE_DEBUG_LEVEL>=4
         static uint32_t lastStat = 0;
-        if (now - lastStat >= 1000) {
+        if (now - lastStat >= 5000) {
           lastStat = now;
-          Serial.printf("[stat] buf=%lu heap=%lu\n",
-                        (unsigned long)g_audio.inBufferFilled(),
-                        (unsigned long)ESP.getFreeHeap());
+          log_d("[stat] buf=%lu heap=%lu", (unsigned long)g_audio.inBufferFilled(),
+                (unsigned long)ESP.getFreeHeap());
         }
       }
       break;
