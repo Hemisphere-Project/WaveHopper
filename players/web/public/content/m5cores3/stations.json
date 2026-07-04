@@ -21,7 +21,7 @@
     "city": "Brooklyn",
     "url": "https://livepeercdn.studio/hls/85c28sa2o8wppm58/index.m3u8",
     "format": "hls",
-    "color": "#eb562a",
+    "color": "#2aeb62",
     "homepage": "https://www.thelotradio.com/",
     "nowPlaying": {
       "type": "thelot-html",
@@ -36,7 +36,7 @@
     "city": "Brussels",
     "url": "https://kioskradiobxl.out.airtime.pro/kioskradiobxl_b",
     "format": "aac",
-    "color": "#8a8a8a",
+    "color": "#9a2aeb",
     "homepage": "https://www.kioskradio.com",
     "nowPlaying": {
       "type": "airtime",
@@ -51,7 +51,7 @@
     "city": "Lyon",
     "url": "https://radio.lyl.live/hls/live.m3u8",
     "format": "hls",
-    "color": "#ebae2a",
+    "color": "#ebd32a",
     "homepage": "https://lyl.live/",
     "nowPlaying": {
       "type": "lyl-graphql"
@@ -65,7 +65,7 @@
     "city": "Bristol",
     "url": "https://noods-radio.radiocult.fm/stream",
     "format": "mp3",
-    "color": "#ebdb2a",
+    "color": "#2acaeb",
     "homepage": "https://noodsradio.com/",
     "nowPlaying": {
       "type": "radiocult",
@@ -80,7 +80,7 @@
     "city": "Mediterranean",
     "url": "https://stream.ondezero.net/listen/oz/radio.mp3",
     "format": "mp3",
-    "color": "#cfeb2a",
+    "color": "#eb2a92",
     "homepage": "https://wavezero.world",
     "nowPlaying": {
       "type": "azuracast",
@@ -95,7 +95,7 @@
     "city": "London",
     "url": "https://stream-relay-geo.ntslive.net/stream",
     "format": "mp3",
-    "color": "#a2eb2a",
+    "color": "#5aeb2a",
     "homepage": "https://www.nts.live/",
     "nowPlaying": {
       "type": "nts"
@@ -109,7 +109,7 @@
     "city": "London",
     "url": "https://stream-relay-geo.ntslive.net/stream2",
     "format": "mp3",
-    "color": "#76eb2a",
+    "color": "#322aeb",
     "homepage": "https://www.nts.live/",
     "nowPlaying": {
       "type": "nts"
@@ -123,7 +123,7 @@
     "city": "London",
     "url": "https://stream-mixtape-geo.ntslive.net/mixtape4",
     "format": "mp3",
-    "color": "#4aeb2a",
+    "color": "#eb6b2a",
     "homepage": "https://www.nts.live/",
     "defaultDisabled": true,
     "icon": "icons/nts.png"
@@ -135,7 +135,7 @@
     "city": "London",
     "url": "https://stream-mixtape-geo.ntslive.net/mixtape",
     "format": "mp3",
-    "color": "#2aeb36",
+    "color": "#2aeba3",
     "homepage": "https://www.nts.live/",
     "defaultDisabled": true,
     "icon": "icons/nts.png"
@@ -147,7 +147,7 @@
     "city": "London",
     "url": "https://stream-mixtape-geo.ntslive.net/mixtape2",
     "format": "mp3",
-    "color": "#2aeb62",
+    "color": "#db2aeb",
     "homepage": "https://www.nts.live/",
     "defaultDisabled": true,
     "icon": "icons/nts.png"
@@ -159,7 +159,7 @@
     "city": "London",
     "url": "https://stream-mixtape-geo.ntslive.net/mixtape6",
     "format": "mp3",
-    "color": "#2aeb8e",
+    "color": "#c2eb2a",
     "homepage": "https://www.nts.live/",
     "defaultDisabled": true,
     "icon": "icons/nts.png"
@@ -171,7 +171,7 @@
     "city": "London",
     "url": "https://stream-mixtape-geo.ntslive.net/mixtape5",
     "format": "mp3",
-    "color": "#2aebbb",
+    "color": "#2a8aeb",
     "homepage": "https://www.nts.live/",
     "defaultDisabled": true,
     "icon": "icons/nts.png"
@@ -183,7 +183,7 @@
     "city": "London",
     "url": "https://stream-mixtape-geo.ntslive.net/mixtape21",
     "format": "mp3",
-    "color": "#2aebe7",
+    "color": "#eb2a52",
     "homepage": "https://www.nts.live/",
     "defaultDisabled": true,
     "icon": "icons/nts.png"
@@ -195,7 +195,7 @@
     "city": "London",
     "url": "https://stream-mixtape-geo.ntslive.net/mixtape26",
     "format": "mp3",
-    "color": "#2ac3eb",
+    "color": "#2aeb3b",
     "homepage": "https://www.nts.live/",
     "defaultDisabled": true,
     "icon": "icons/nts.png"
@@ -207,7 +207,7 @@
     "city": "London",
     "url": "https://stream-mixtape-geo.ntslive.net/mixtape35",
     "format": "mp3",
-    "color": "#2a96eb",
+    "color": "#732aeb",
     "homepage": "https://www.nts.live/",
     "defaultDisabled": true,
     "icon": "icons/nts.png"
@@ -219,7 +219,7 @@
     "city": "London",
     "url": "https://stream-mixtape-geo.ntslive.net/mixtape27",
     "format": "mp3",
-    "color": "#2a6aeb",
+    "color": "#ebab2a",
     "homepage": "https://www.nts.live/",
     "defaultDisabled": true,
     "icon": "icons/nts.png"
@@ -231,7 +231,7 @@
     "city": "London",
     "url": "https://stream-mixtape-geo.ntslive.net/mixtape3",
     "format": "mp3",
-    "color": "#2a3eeb",
+    "color": "#2aebe3",
     "homepage": "https://www.nts.live/",
     "defaultDisabled": true,
     "icon": "icons/nts.png"
@@ -243,7 +243,7 @@
     "city": "London",
     "url": "https://stream-mixtape-geo.ntslive.net/mixtape22",
     "format": "mp3",
-    "color": "#422aeb",
+    "color": "#eb2aba",
     "homepage": "https://www.nts.live/",
     "defaultDisabled": true,
     "icon": "icons/nts.png"
@@ -255,7 +255,7 @@
     "city": "London",
     "url": "https://stream-mixtape-geo.ntslive.net/mixtape31",
     "format": "mp3",
-    "color": "#6e2aeb",
+    "color": "#82eb2a",
     "homepage": "https://www.nts.live/",
     "defaultDisabled": true,
     "icon": "icons/nts.png"
@@ -267,7 +267,7 @@
     "city": "London",
     "url": "https://stream-mixtape-geo.ntslive.net/mixtape24",
     "format": "mp3",
-    "color": "#9a2aeb",
+    "color": "#2a4aeb",
     "homepage": "https://www.nts.live/",
     "defaultDisabled": true,
     "icon": "icons/nts.png"
@@ -279,7 +279,7 @@
     "city": "London",
     "url": "https://stream-mixtape-geo.ntslive.net/mixtape36",
     "format": "mp3",
-    "color": "#c72aeb",
+    "color": "#eb432a",
     "homepage": "https://www.nts.live/",
     "defaultDisabled": true,
     "icon": "icons/nts.png"
@@ -291,7 +291,7 @@
     "city": "London",
     "url": "https://stream-mixtape-geo.ntslive.net/mixtape34",
     "format": "mp3",
-    "color": "#eb2ae3",
+    "color": "#2aeb7b",
     "homepage": "https://www.nts.live/",
     "defaultDisabled": true,
     "icon": "icons/nts.png"
@@ -303,7 +303,7 @@
     "city": "London",
     "url": "https://stream-mixtape-geo.ntslive.net/mixtape23",
     "format": "mp3",
-    "color": "#eb2ab6",
+    "color": "#b32aeb",
     "homepage": "https://www.nts.live/",
     "defaultDisabled": true,
     "icon": "icons/nts.png"

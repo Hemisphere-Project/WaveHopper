@@ -87,7 +87,10 @@ void tick(bool playing, int stationIndex, bool stationChanged) {
   if (stationChanged) {
     publish("", "");
     g_lastStation = stationIndex;
-    g_nextPollAt = now;  // poll as soon as we're playing
+    // Small grace period: polling the instant playback starts stacks this
+    // TLS handshake on top of boot sync / stream connect heap usage (seen
+    // dipping free heap to ~8 KB).
+    g_nextPollAt = now + 2500;
   }
   if (!playing || stationIndex < 0) return;
   if (now < g_nextPollAt) return;

@@ -39,10 +39,15 @@ bool g_haveCard = false;
 uint32_t g_overlayUntil = 0;  // volume bar or toast owns the screen until then
 
 // Settings overlay state
+enum class SettingsPage : uint8_t { Main, Stations, Wifi };
 bool g_settingsOpen = false;
+SettingsPage g_page = SettingsPage::Main;
 AudioOutSetting g_setAout = AudioOutSetting::Auto;
 AudioOutSetting g_setAoutOriginal = AudioOutSetting::Auto;
 uint8_t g_setBright = 200;
+std::vector<StationMeta> g_metas;  // stations page working copy
+int g_metaScroll = 0;
+bool g_stationsChanged = false;
 
 const char* aoutName(AudioOutSetting a) {
   switch (a) {
@@ -229,9 +234,9 @@ void buildCard() {
   g_card.setFont(&F_SMALL);
   g_card.setTextColor(COL_DIM, COL_BG);
   g_card.setTextDatum(bottom_left);
-  g_card.drawString("<", 6, H - 2);
+  g_card.drawString("<", 6, H - 6);  // clear of the bottom buffer gauge
   g_card.setTextDatum(bottom_right);
-  g_card.drawString(">", W - 6, H - 2);
+  g_card.drawString(">", W - 6, H - 6);
 }
 
 void pushCard() {
@@ -287,46 +292,131 @@ void drawToast(int current) {
   d.endWrite();
 }
 
-void drawSettings() {
+bool settingsNeedsReboot() {
+  return g_setAout != g_setAoutOriginal || g_stationsChanged;
+}
+
+void drawBottomButton(const char* label) {
+  auto& d = M5.Display;
+  d.setTextDatum(middle_center);
+  d.setFont(&F_MED);
+  d.fillRoundRect(W / 2 - 90, 198, 180, 32, 8, COL_LINE);
+  d.setTextColor(COL_FG, COL_LINE);
+  d.drawString(label, W / 2, 214);
+}
+
+void drawSettingsMain() {
   auto& d = M5.Display;
   d.startWrite();
   d.fillScreen(COL_BG);
   d.setFont(&F_BIG);
   d.setTextDatum(top_center);
   d.setTextColor(COL_FG, COL_BG);
-  d.drawString("SETTINGS", W / 2, 8);
+  d.drawString("SETTINGS", W / 2, 6);
 
   d.setFont(&F_SMALL);
   d.setTextDatum(middle_left);
   d.setTextColor(COL_DIM, COL_BG);
-  d.drawString("audio out", 16, 62);
-  d.drawString("brightness", 16, 100);
+  d.drawString("audio out", 16, 58);
+  d.drawString("brightness", 16, 90);
   d.setTextDatum(middle_right);
   d.setFont(&F_MED);
   d.setTextColor(COL_FG, COL_BG);
   char buf[24];
   snprintf(buf, sizeof(buf), "< %s >", aoutName(g_setAout));
-  d.drawString(buf, W - 16, 62);
+  d.drawString(buf, W - 16, 58);
   snprintf(buf, sizeof(buf), "< %d%% >", g_setBright * 100 / 255);
-  d.drawString(buf, W - 16, 100);
+  d.drawString(buf, W - 16, 90);
+
+  d.setTextDatum(middle_left);
+  d.drawString("stations ...", 16, 126);
+  d.drawString("wifi ...", 16, 158);
 
   d.setFont(&F_SMALL);
   d.setTextDatum(top_left);
   d.setTextColor(COL_DIM, COL_BG);
   snprintf(buf, sizeof(buf), "fw %s (%d)", WH_FW_VERSION, WH_FW_BUILD);
-  d.drawString(buf, 16, 134);
-  String cv = "content " + catalog::contentVersion().substring(0, 12);
-  d.drawString(cv.c_str(), 16, 152);
-  String ip = "ip " + WiFi.localIP().toString();
-  d.drawString(ip.c_str(), 16, 170);
+  String info = String(buf) + "  c:" + catalog::contentVersion().substring(0, 8);
+  d.drawString(info.c_str(), 16, 178);
 
-  d.setTextDatum(middle_center);
-  d.setFont(&F_MED);
-  bool reboots = g_setAout != g_setAoutOriginal;
-  d.fillRoundRect(W / 2 - 90, 198, 180, 32, 8, COL_LINE);
-  d.setTextColor(COL_FG, COL_LINE);
-  d.drawString(reboots ? "SAVE+REBOOT" : "CLOSE", W / 2, 214);
+  drawBottomButton(settingsNeedsReboot() ? "SAVE+REBOOT" : "CLOSE");
   d.endWrite();
+}
+
+constexpr int kMetaRows = 6;
+
+void drawSettingsStations() {
+  auto& d = M5.Display;
+  d.startWrite();
+  d.fillScreen(COL_BG);
+  d.setFont(&F_MED);
+  d.setTextDatum(top_center);
+  d.setTextColor(COL_FG, COL_BG);
+  d.drawString("STATIONS", W / 2, 4);
+
+  d.setFont(&F_SMALL);
+  for (int row = 0; row < kMetaRows; ++row) {
+    int i = g_metaScroll + row;
+    if (i >= (int)g_metas.size()) break;
+    int y = 34 + row * 27;
+    d.drawRect(12, y, 16, 16, COL_DIM);
+    if (g_metas[i].visible) d.fillRect(15, y + 3, 10, 10, rgb565(0x2a, 0xeb, 0x62));
+    d.setTextDatum(middle_left);
+    d.setTextColor(g_metas[i].visible ? COL_FG : COL_DIM, COL_BG);
+    d.drawString(g_metas[i].label.c_str(), 40, y + 8);
+  }
+  d.setTextDatum(middle_center);
+  d.setTextColor(COL_DIM, COL_BG);
+  char pos[16];
+  snprintf(pos, sizeof(pos), "%d-%d / %d", g_metaScroll + 1,
+           (int)std::min<size_t>(g_metaScroll + kMetaRows, g_metas.size()),
+           (int)g_metas.size());
+  d.drawString(pos, W / 2, 34 + kMetaRows * 27 + 6);
+
+  d.setFont(&F_MED);
+  d.setTextColor(COL_FG, COL_LINE);
+  d.fillRoundRect(8, 198, 70, 32, 8, COL_LINE);
+  d.setTextDatum(middle_center);
+  d.drawString("^", 8 + 35, 214);
+  d.fillRoundRect(W - 78, 198, 70, 32, 8, COL_LINE);
+  d.drawString("v", W - 78 + 35, 214);
+  d.fillRoundRect(W / 2 - 55, 198, 110, 32, 8, COL_LINE);
+  d.drawString("BACK", W / 2, 214);
+  d.endWrite();
+}
+
+void drawSettingsWifi() {
+  auto& d = M5.Display;
+  d.startWrite();
+  d.fillScreen(COL_BG);
+  d.setFont(&F_MED);
+  d.setTextDatum(top_center);
+  d.setTextColor(COL_FG, COL_BG);
+  d.drawString("WIFI", W / 2, 4);
+
+  d.setFont(&F_SMALL);
+  d.setTextDatum(top_left);
+  d.setTextColor(COL_FG, COL_BG);
+  String l1 = "ssid: " + WiFi.SSID();
+  String l2 = "ip:   " + WiFi.localIP().toString();
+  String l3 = "rssi: " + String(WiFi.RSSI()) + " dBm";
+  d.drawString(l1.c_str(), 16, 48);
+  d.drawString(l2.c_str(), 16, 74);
+  d.drawString(l3.c_str(), 16, 100);
+  d.setTextColor(COL_DIM, COL_BG);
+  d.drawString("scan + join with on-screen", 16, 140);
+  d.drawString("keyboard: coming soon", 16, 160);
+
+  drawBottomButton("BACK");
+  d.endWrite();
+}
+
+void drawSettings() {
+  switch (g_page) {
+    case SettingsPage::Stations: drawSettingsStations(); break;
+    case SettingsPage::Wifi:     drawSettingsWifi(); break;
+    default:                     drawSettingsMain(); break;
+  }
 }
 
 }  // namespace
@@ -377,27 +467,70 @@ bool settingsOpen() { return g_settingsOpen; }
 
 void settingsShow(AudioOutSetting audioOut, uint8_t brightness) {
   g_settingsOpen = true;
+  g_page = SettingsPage::Main;
   g_setAout = g_setAoutOriginal = audioOut;
   g_setBright = brightness;
+  g_stationsChanged = false;
   drawSettings();
 }
 
 SettingsAction settingsTouch(int x, int y) {
+  if (g_page == SettingsPage::Stations) {
+    if (y >= 34 && y < 34 + kMetaRows * 27) {  // toggle a row
+      int i = g_metaScroll + (y - 34) / 27;
+      if (i >= 0 && i < (int)g_metas.size()) {
+        catalog::toggleUserVisible(g_metas[i].id);
+        g_metas[i].visible = !g_metas[i].visible;
+        g_stationsChanged = true;
+        drawSettings();
+      }
+    } else if (y > 190) {
+      if (x < 100) {  // page up
+        g_metaScroll = std::max(0, g_metaScroll - kMetaRows);
+        drawSettings();
+      } else if (x > W - 100) {  // page down
+        if (g_metaScroll + kMetaRows < (int)g_metas.size()) g_metaScroll += kMetaRows;
+        drawSettings();
+      } else {  // BACK
+        g_page = SettingsPage::Main;
+        drawSettings();
+      }
+    }
+    return SettingsAction::None;
+  }
+
+  if (g_page == SettingsPage::Wifi) {
+    if (y > 190) {
+      g_page = SettingsPage::Main;
+      drawSettings();
+    }
+    return SettingsAction::None;
+  }
+
+  // Main page
   if (y > 190 && x > W / 2 - 90 && x < W / 2 + 90) {  // CLOSE / SAVE+REBOOT
     g_settingsOpen = false;
-    bool reboot = g_setAout != g_setAoutOriginal;
+    bool reboot = settingsNeedsReboot();
     if (!reboot && g_haveCard) pushCard();
     return reboot ? SettingsAction::CloseAndReboot : SettingsAction::Close;
   }
-  if (y > 46 && y < 80) {  // audio out cycle
+  if (y > 42 && y < 74) {  // audio out cycle
     g_setAout = static_cast<AudioOutSetting>((static_cast<uint8_t>(g_setAout) + 1) % 4);
     drawSettings();
-  } else if (y > 84 && y < 118) {  // brightness cycle, applied live
+  } else if (y > 74 && y < 108) {  // brightness cycle, applied live
     static const uint8_t levels[] = {60, 120, 200, 255};
     size_t i = 0;
     while (i < 3 && levels[i] <= g_setBright) ++i;
     g_setBright = levels[g_setBright >= 255 ? 0 : i];
     M5.Display.setBrightness(g_setBright);
+    drawSettings();
+  } else if (y > 108 && y < 142) {  // stations page
+    g_metas = catalog::allMeta();
+    g_metaScroll = 0;
+    g_page = SettingsPage::Stations;
+    drawSettings();
+  } else if (y > 142 && y < 172) {  // wifi page
+    g_page = SettingsPage::Wifi;
     drawSettings();
   }
   return SettingsAction::None;
@@ -408,7 +541,7 @@ uint8_t settingsBrightness() { return g_setBright; }
 
 void stationToast(int currentIndex) {
   if (!g_haveCard) return;
-  g_overlayUntil = millis() + 2000;
+  g_overlayUntil = millis() + 1500;
   drawToast(currentIndex);
 }
 
@@ -426,8 +559,8 @@ void bufferGauge(uint32_t buffered, uint32_t target) {
   uint16_t col = (buffered * 2 >= target)   ? rgb565(0x2a, 0xeb, 0x62)
                  : (buffered * 5 >= target) ? rgb565(0xeb, 0xae, 0x2a)
                                             : rgb565(0xeb, 0x2a, 0x2a);
-  M5.Display.fillRect(0, 6, w, 2, col);
-  M5.Display.fillRect(w, 6, W - w, 2, COL_BG);
+  M5.Display.fillRect(0, H - 2, w, 2, col);  // bottom edge — clear of the accent bar
+  M5.Display.fillRect(w, H - 2, W - w, 2, COL_BG);
 }
 
 void tick() {

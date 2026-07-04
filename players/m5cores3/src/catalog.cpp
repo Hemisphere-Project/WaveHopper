@@ -6,6 +6,8 @@
 #include "config.h"
 
 namespace {
+constexpr const char* kPrefsPath = "/prefs.json";
+
 std::vector<Station> g_stations;
 String g_contentVersion;
 
@@ -13,6 +15,52 @@ uint16_t hexColorTo565(const char* hex) {
   if (!hex || hex[0] != '#' || strlen(hex) < 7) return 0xFFFF;
   uint32_t rgb = strtoul(hex + 1, nullptr, 16);
   return ((rgb >> 8) & 0xF800) | ((rgb >> 5) & 0x07E0) | ((rgb >> 3) & 0x001F);
+}
+
+// User visibility overrides, relative to the pack's defaultDisabled defaults:
+// "disabled" hides default-visible stations, "enabled" shows default-hidden.
+struct Prefs {
+  std::vector<String> disabled;
+  std::vector<String> enabled;
+};
+
+bool inList(const std::vector<String>& v, const String& id) {
+  for (auto& e : v)
+    if (e == id) return true;
+  return false;
+}
+
+Prefs loadPrefs() {
+  Prefs prefs;
+  File f = LittleFS.open(kPrefsPath, "r");
+  if (!f) return prefs;
+  JsonDocument doc;
+  if (deserializeJson(doc, f) == DeserializationError::Ok) {
+    for (JsonVariant v : doc["disabled"].as<JsonArray>()) prefs.disabled.push_back((const char*)v);
+    for (JsonVariant v : doc["enabled"].as<JsonArray>()) prefs.enabled.push_back((const char*)v);
+  }
+  f.close();
+  return prefs;
+}
+
+void savePrefs(const Prefs& prefs) {
+  JsonDocument doc;
+  JsonArray d = doc["disabled"].to<JsonArray>();
+  for (auto& id : prefs.disabled) d.add(id);
+  JsonArray e = doc["enabled"].to<JsonArray>();
+  for (auto& id : prefs.enabled) e.add(id);
+  File f = LittleFS.open(kPrefsPath, "w");
+  if (!f) {
+    log_e("prefs save failed");
+    return;
+  }
+  serializeJson(doc, f);
+  f.close();
+}
+
+bool visibleFor(bool defaultDisabled, const Prefs& prefs, const String& id) {
+  if (defaultDisabled) return inList(prefs.enabled, id);
+  return !inList(prefs.disabled, id);
 }
 }  // namespace
 
@@ -49,10 +97,12 @@ bool load() {
     return false;
   }
 
+  Prefs prefs = loadPrefs();
   for (JsonObject o : doc.as<JsonArray>()) {
-    if (o["defaultDisabled"] | false) continue;
     const char* format = o["format"] | "";
     if (strcmp(format, "hls") == 0) continue;  // unplayable on this hardware (v1)
+    String id = (const char*)(o["id"] | "");
+    if (!visibleFor(o["defaultDisabled"] | false, prefs, id)) continue;
 
     Station s;
     s.id = (const char*)(o["id"] | "");
@@ -99,5 +149,73 @@ int indexOfId(const String& id) {
 }
 
 String contentVersion() { return g_contentVersion; }
+
+std::vector<StationMeta> allMeta() {
+  std::vector<StationMeta> metas;
+  File f = LittleFS.open(WH_FS_CONTENT_DIR "/stations.json", "r");
+  if (!f) return metas;
+  JsonDocument filter;
+  JsonObject sf = filter.add<JsonObject>();
+  sf["id"] = true;
+  sf["station"] = true;
+  sf["channel"] = true;
+  sf["format"] = true;
+  sf["defaultDisabled"] = true;
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, f, DeserializationOption::Filter(filter));
+  f.close();
+  if (err != DeserializationError::Ok) return metas;
+
+  Prefs prefs = loadPrefs();
+  for (JsonObject o : doc.as<JsonArray>()) {
+    if (strcmp(o["format"] | "", "hls") == 0) continue;
+    StationMeta m;
+    m.id = (const char*)(o["id"] | "");
+    String ch = (const char*)(o["channel"] | "");
+    m.label = String((const char*)(o["station"] | ""));
+    if (!ch.isEmpty() && ch != "main") m.label += " " + ch;
+    m.visible = visibleFor(o["defaultDisabled"] | false, prefs, m.id);
+    if (!m.id.isEmpty()) metas.push_back(std::move(m));
+  }
+  return metas;
+}
+
+void toggleUserVisible(const String& id) {
+  // Determine the station's default from the pack, then flip relative to it.
+  bool defaultDisabled = false;
+  {
+    File f = LittleFS.open(WH_FS_CONTENT_DIR "/stations.json", "r");
+    if (!f) return;
+    JsonDocument filter;
+    JsonObject sf = filter.add<JsonObject>();
+    sf["id"] = true;
+    sf["defaultDisabled"] = true;
+    JsonDocument doc;
+    if (deserializeJson(doc, f, DeserializationOption::Filter(filter)) !=
+        DeserializationError::Ok) {
+      f.close();
+      return;
+    }
+    f.close();
+    for (JsonObject o : doc.as<JsonArray>()) {
+      if (id == (const char*)(o["id"] | "")) {
+        defaultDisabled = o["defaultDisabled"] | false;
+        break;
+      }
+    }
+  }
+  Prefs prefs = loadPrefs();
+  auto& overrides = defaultDisabled ? prefs.enabled : prefs.disabled;
+  bool removed = false;
+  for (size_t i = 0; i < overrides.size(); ++i) {
+    if (overrides[i] == id) {
+      overrides.erase(overrides.begin() + i);
+      removed = true;
+      break;
+    }
+  }
+  if (!removed) overrides.push_back(id);
+  savePrefs(prefs);
+}
 
 }  // namespace catalog

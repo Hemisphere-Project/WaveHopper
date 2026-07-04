@@ -315,16 +315,25 @@ void tick() {
         g_lastHealth = now;
         audio_out::onSampleRate(g_profile, 48000);  // SWS fault self-heal
       }
-      {  // buffer diagnostics: 10 s cadence, min tracks the worst dip
-        static uint32_t lastStat = 0, minBuf = UINT32_MAX;
-        minBuf = std::min(minBuf, g_audio.inBufferFilled());
+      {  // buffer diagnostics: 10 s cadence, min tracks the worst dip.
+        // arrival = Δbuffer + consumption — separates supply-side problems
+        // (arrival < bitrate: wifi/server) from consumption-side ones.
+        static uint32_t lastStat = 0, minBuf = UINT32_MAX, lastBuf = 0;
+        uint32_t bufNow = g_audio.inBufferFilled();
+        minBuf = std::min(minBuf, bufNow);
         if (now - lastStat >= 10000) {
+          float dt = (now - lastStat) / 1000.0f;
+          float consKBs = g_audio.getBitRate() / 8.0f / 1000.0f;
+          float arrivKBs = consKBs + ((int32_t)bufNow - (int32_t)lastBuf) / dt / 1000.0f;
           lastStat = now;
-          log_i("[buf] now=%lu min=%lu target=%lu heap=%lu rssi=%d",
-                (unsigned long)g_audio.inBufferFilled(), (unsigned long)minBuf,
+          log_i("[buf] now=%lu min=%lu target=%lu cons=%.1fKB/s arriv=%.1fKB/s "
+                "rssi=%d sleep=%d heap=%lu",
+                (unsigned long)bufNow, (unsigned long)minBuf,
                 (unsigned long)(g_targets.empty() ? 0 : g_targets[g_current]),
-                (unsigned long)ESP.getFreeHeap(), WiFi.RSSI());
+                consKBs, arrivKBs, WiFi.RSSI(), (int)WiFi.getSleep(),
+                (unsigned long)ESP.getFreeHeap());
           minBuf = UINT32_MAX;
+          lastBuf = bufNow;
         }
       }
       break;

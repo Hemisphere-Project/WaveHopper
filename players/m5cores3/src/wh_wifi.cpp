@@ -30,8 +30,11 @@ bool connect(WhSettings& s, uint32_t timeoutMs) {
     log_e("wifi connect timeout (ssid=%s)", s.ssid.c_str());
     return false;
   }
-  log_i("wifi up: %s rssi=%d ip=%s", s.ssid.c_str(), WiFi.RSSI(),
-        WiFi.localIP().toString().c_str());
+  // Re-assert after association — modem power-save inflates RTT enough to
+  // choke the (small, compile-time) lwIP TCP window below stream bitrate.
+  WiFi.setSleep(false);
+  log_i("wifi up: %s rssi=%d ip=%s sleep=%d", s.ssid.c_str(), WiFi.RSSI(),
+        WiFi.localIP().toString().c_str(), (int)WiFi.getSleep());
   return true;
 }
 

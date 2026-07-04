@@ -157,8 +157,30 @@ void loop() {
   if (step && n) {
     if (browseIdx < 0) browseIdx = snap.stationIndex < 0 ? 0 : snap.stationIndex;
     browseIdx = (browseIdx + step + n) % n;
-    browseCommitAt = millis() + 700;
+    browseCommitAt = millis() + 600;
     ui::stationToast(browseIdx);
+  }
+  // Vertical drag scrolls the selection continuously (~30 px per station);
+  // drag down moves up the list, like scrolling content.
+  static int dragBaseIdx = -1;
+  static bool dragging = false;
+  if (t.isPressed() && t.y < 240 && n) {
+    int dy = t.distanceY();
+    if (!dragging && abs(dy) > 24 && abs(dy) > abs(t.distanceX())) {
+      dragging = true;
+      dragBaseIdx = browseIdx >= 0 ? browseIdx
+                                   : (snap.stationIndex < 0 ? 0 : snap.stationIndex);
+    }
+    if (dragging) {
+      int idx = ((dragBaseIdx - dy / 30) % n + n) % n;
+      if (idx != browseIdx) {
+        browseIdx = idx;
+        ui::stationToast(browseIdx);
+      }
+      browseCommitAt = millis() + 600;
+    }
+  } else if (dragging) {
+    dragging = false;
   }
   if (browseIdx >= 0 && millis() > browseCommitAt) {
     player::tuneTo(browseIdx);
