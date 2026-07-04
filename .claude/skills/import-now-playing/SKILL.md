@@ -13,16 +13,16 @@ This skill is the metadata-layer sibling of `/import-station`. The audio stream 
 
 The user invokes this skill with a station id (e.g. `nts-1`, `dublab`, `noods`).
 
-- The station must already exist in `stations/<id>.json` with status `added` in its MD. If not, point the user to `/import-station` first.
-- If the MD lacks a `## Now-playing` section, add one (template is in `stations/_template.md`).
+- The station must already exist in `content/stations/<id>.json` with status `added` in its MD. If not, point the user to `/import-station` first.
+- If the MD lacks a `## Now-playing` section, add one (template is in `content/stations/_template.md`).
 
 ## Output
 
 This skill writes:
-- A `nowPlaying` block in `stations/<id>.json` with at minimum `{ "type": "<type>" }`. Optional per-type fields (e.g. an `endpoint` URL for Airtime) can sit alongside.
-- A filled-out `## Now-playing` section in `stations/<id>.md` describing endpoint, mapping, cache key, and any caveats.
-- A new fetcher at `public/api/fetchers/<type>.php` if the type doesn't exist yet (function name: `wh_fetch_nowplaying_<type>`, dashes in the type become underscores in the function name).
-- An updated `public/stations.json` via `python3 build.py` from the repo root.
+- A `nowPlaying` block in `content/stations/<id>.json` with at minimum `{ "type": "<type>" }`. Optional per-type fields (e.g. an `endpoint` URL for Airtime) can sit alongside.
+- A filled-out `## Now-playing` section in `content/stations/<id>.md` describing endpoint, mapping, cache key, and any caveats.
+- A new fetcher at `players/web/public/api/fetchers/<type>.php` if the type doesn't exist yet (function name: `wh_fetch_nowplaying_<type>`, dashes in the type become underscores in the function name).
+- Updated committed artifacts via `python3 tools/build.py` from the repo root.
 
 If the station has no usable metadata source, write `"nowPlaying": { "type": "none" }` — that's the explicit "we checked, there's nothing" marker. The dispatcher returns 204 and the frontend hides the card.
 
@@ -55,7 +55,7 @@ The dispatcher injects `source` and `fetchedAt` afterward. **Don't add other top
 
 ## Playbook
 
-1. **Read state.** Open `stations/<id>.md`. Check the `## Now-playing` section if it exists.
+1. **Read state.** Open `content/stations/<id>.md`. Check the `## Now-playing` section if it exists.
 2. **Identify a candidate source.** In rough order of preference:
    - The station's homepage often surfaces the now-playing endpoint via XHR/fetch in DevTools-equivalent inspection — `curl -sL <site>` and grep for `now`, `playing`, `live`, `metadata`, `current`, `track`, `schedule`.
    - Common provider patterns:
@@ -67,10 +67,10 @@ The dispatcher injects `source` and `fetchedAt` afterward. **Don't add other top
 4. **Map to the normalized shape.** Decide what becomes `title` vs `subtitle`. The rule:
    - If the source has per-*track* info (artist + song): track → `title`, artist → `subtitle`.
    - If the source has only per-*show* info: show host → `title`, slot/program name → `subtitle` (or null if redundant).
-5. **Write the fetcher** at `public/api/fetchers/<type>.php`. Cache TTL: 30s for show-level data, 20s for per-track data. If one upstream call serves multiple stations (NTS pattern), use a shared cache key and pick by `station.channel` or `station.id`.
-6. **Update `stations/<id>.json`** — add the `nowPlaying` block.
-7. **Update `stations/<id>.md`** — fill the `## Now-playing` section (endpoint, mapping, cache key, caveats).
-8. **Run `python3 build.py`** from the repo root to regenerate `public/stations.json`.
+5. **Write the fetcher** at `players/web/public/api/fetchers/<type>.php`. Cache TTL: 30s for show-level data, 20s for per-track data. If one upstream call serves multiple stations (NTS pattern), use a shared cache key and pick by `station.channel` or `station.id`.
+6. **Update `content/stations/<id>.json`** — add the `nowPlaying` block.
+7. **Update `content/stations/<id>.md`** — fill the `## Now-playing` section (endpoint, mapping, cache key, caveats).
+8. **Run `python3 tools/build.py`** from the repo root to regenerate the committed artifacts.
 9. **Update "Patterns we've seen" below** with anything new and reusable.
 
 ## Verification on the deployed host

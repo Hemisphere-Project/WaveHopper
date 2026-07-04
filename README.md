@@ -1,43 +1,56 @@
 # WaveHopper
 
-A curated webradio aggregator. Pick a station, hop to the next one, lock your phone and keep listening. Static frontend (vanilla JS PWA) + a small PHP dispatcher for now-playing metadata. No audio relay — every station is HTTPS with permissive CORS, so the browser plays them directly.
+A curated webradio aggregator. Pick a station, hop to the next one, lock your
+phone and keep listening.
+
+One station catalog, several players: the live web app / PWA at
+[waverz.net](https://waverz.net) is the authoritative deploy; device and store
+players sync content (and, where applicable, firmware) from it. The design
+goal is **maximum shared content, minimum per-player code surface** — see
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the model and
+[docs/CONTENT-API.md](docs/CONTENT-API.md) for the normative cross-player
+contract.
+
+## Players
+
+| Player | Status | Code | Content updates |
+|---|---|---|---|
+| Web / PWA | live | `players/web/` | on every load from `/stations.json` |
+| M5Stack CoreS3 | skeleton | `players/m5cores3/` | self-syncs `/content/m5cores3/` pack + self-OTA |
+| iOS / Android (Capacitor) | planned | `players/mobile/` | same endpoints as the PWA; binary via stores |
+
+Each player directory has its own `README.md` (humans) and `CLAUDE.md`
+(AI-agent working rules with a scope fence), so work on different players can
+proceed in parallel without stepping on the shared contract.
 
 ## Layout
 
 ```
 WaveHopper/
-├── public/                       Web docroot (served by nginx in prod)
-│   ├── index.html
-│   ├── app.js                    Frontend entry point (~20KB, no build step)
-│   ├── style.css                 Pixel/8-bit aesthetic + 4 skins
-│   ├── manifest.webmanifest      PWA manifest
-│   ├── sw.js                     Service worker (shell cache, no stream interception)
-│   ├── stations.json             Built artifact — committed for static hosting
-│   ├── vendor/
-│   │   ├── vt323-latin.woff2     VT323 pixel font (Dark / Paper skins)
-│   │   ├── fredoka-latin.woff2   Fredoka rounded font (Fantasy skin)
-│   │   └── hls.light.min.js      Lazy-loaded only when an HLS station is picked
-│   ├── img/favicon/              PWA icons (192/512/maskable, apple-touch, favicons)
-│   └── api/
-│       ├── now-playing.php       Per-station now-playing dispatcher
-│       ├── fetchers/             One PHP fetcher per source type (nts, airtime, …)
-│       ├── lib/                  Shared PHP helpers
-│       └── cache/                Filesystem cache for upstream metadata
-├── build.py                      Root Python build script for public/stations.json
-├── stations/                     Per-station source files, source of truth
-│   ├── _order.json               Curated display order
-│   ├── _template.md              Template for new stations
-│   ├── <id>.json                 Channel definition (one per playable channel)
-│   └── <id>.md                   Research notes (status, extraction method, etc.)
-└── .claude/skills/
-    └── import-station/           The /import-station skill
+├── content/                      SOURCE OF TRUTH
+│   ├── stations/                 <id>.json (channel def) + <id>.md (research notes)
+│   ├── icons/                    full-size station icon sources
+│   └── _order.json               curated display order
+├── players/
+│   ├── web/public/               deployable docroot (PWA + PHP now-playing API)
+│   │   ├── index.html, app.js, style.css, sw.js, manifest.webmanifest
+│   │   ├── stations.json         BUILT artifact (committed)
+│   │   ├── img/stations/         BUILT icon copies
+│   │   ├── content/              BUILT device packs + firmware manifests
+│   │   └── api/                  now-playing dispatcher + fetchers (PHP)
+│   ├── m5cores3/                 M5Stack CoreS3 firmware (PlatformIO)
+│   └── mobile/                   Capacitor shell (placeholder)
+├── tools/build.py                content/ → all committed artifacts
+├── docs/                         ARCHITECTURE.md + CONTENT-API.md
+└── .claude/skills/               /import-station, /import-now-playing
 ```
 
 ## Station data model
 
-Two parallel files per station:
+Two parallel files per station in `content/stations/`:
 
-**`stations/<id>.json`** — the playable channel definition. Multi-channel stations (e.g. NTS) become multiple JSON files (`nts-1.json`, `nts-2.json`, `nts-poolside.json`, …):
+**`<id>.json`** — the playable channel definition. Multi-channel stations
+(e.g. NTS) become multiple JSON files (`nts-1.json`, `nts-poolside.json`, …):
 
 ```json
 {
@@ -48,29 +61,31 @@ Two parallel files per station:
   "url": "https://stream-relay-geo.ntslive.net/stream",
   "format": "mp3",
   "color": "#fff205",
-  "nowPlaying": { "type": "nts" },
-  "defaultDisabled": false
+  "nowPlaying": { "type": "nts" }
 }
 ```
 
-Optional fields:
-- `defaultDisabled: true` — hidden from the main list on first run, opt-in via config (used for the 16 NTS Mixtapes so the default catalog stays small).
-- `nowPlaying`: `{ "type": "nts" | "airtime" | "radiocult" | "lyl-graphql" | "hls-id3" | "none" }`. Some types accept extra fields (e.g. airtime takes `endpoint`).
+Optional fields: `homepage`, `icon`, `defaultDisabled` (hidden from the main
+list on first run — used for the 16 NTS Mixtapes), `nowPlaying.type` of
+`nts | airtime | radiocult | lyl-graphql | thelot-html | azuracast | hls-id3 | none`.
+The full field table with per-player notes is in
+[docs/CONTENT-API.md](docs/CONTENT-API.md).
 
-**`stations/<id>.md`** — research notes with frontmatter `status:` field. Lifecycle:
+**`<id>.md`** — research notes with a frontmatter `status:` field. Lifecycle:
 
-| Status        | Meaning                                                    |
-|---------------|------------------------------------------------------------|
-| `pending`     | Never touched                                              |
-| `researching` | Actively investigating, partial info                       |
-| `extracted`   | Candidate stream URL(s) found, not yet verified            |
-| `verified`    | `curl` confirms it streams correctly                       |
-| `added`       | JSON file exists and the station is wired up               |
-| `broken`      | Could not crack from public site, parked                   |
+| Status        | Meaning                                             |
+|---------------|-----------------------------------------------------|
+| `pending`     | Never touched                                       |
+| `researching` | Actively investigating, partial info                |
+| `extracted`   | Candidate stream URL(s) found, not yet verified     |
+| `verified`    | `curl` confirms it streams correctly                |
+| `added`       | JSON file exists and the station is wired up        |
+| `broken`      | Could not crack from public site, parked            |
 
-**`stations/_order.json`** — the curated display order (array of ids). Stations not listed are appended alphabetically; the build script ([build.py](build.py)) handles the merge.
+**`content/_order.json`** — curated display order (array of ids; unlisted
+stations are appended alphabetically by the build).
 
-## Current catalog
+### Current catalog
 
 23 channels across 6 stations, 2 parked:
 
@@ -85,91 +100,62 @@ Optional fields:
 | Threads Radio  | —        | dead Airtime   | broken |
 | VIZI Radio     | —        | site offline   | broken |
 
-## How playback works
+### Importing stations
 
-- **MP3 (Icecast)**: native `<audio>` everywhere.
-- **HLS**: native on Safari/iOS; on Chrome/Firefox/Android Chrome, `hls.js` is lazily fetched the first time the user picks an HLS station (one-time ~110KB gz).
-- **Auto-skip**: if the active stream errors fatally (HLS manifest down, MP3 server unreachable), the player auto-advances to the next enabled station with one HLS soft-recovery attempt first. After all enabled stations fail, it stops with "no stations on air".
-- **Background hardening**: stuck-time watcher (8s threshold), reattach on `visibilitychange` / `online`, never pauses on backgrounding (the OS handles that).
-- **Last station memory**: on reload, the previously-played station is pre-selected; tapping PLAY resumes it without a station picker round-trip.
-
-## Now-playing metadata
-
-[public/api/now-playing.php](public/api/now-playing.php) is a tiny dispatcher: takes `?id=<station-id>`, looks up the station's `nowPlaying.type`, runs the matching fetcher in [public/api/fetchers/](public/api/fetchers/), caches the result on disk, and returns a normalized `{ title, subtitle?, ends?, artwork? }` payload. The frontend polls every 30 seconds while playing and visible — paused or backgrounded means no polling.
-
-`hls-id3` and `none` skip the dispatcher (the former reads ID3 from HLS frags client-side, the latter has no metadata).
-
-## PWA
-
-- Installable on Android Chrome and iOS Safari ("Add to Home Screen"). Runs in standalone mode for better lock-screen audio reliability than a tab.
-- Service worker pre-caches the app shell so the player launches offline (streams obviously still need the network).
-- Media Session API exposes the current station + show on the OS lock screen and Bluetooth controls (play/pause/next/previous).
-
-## Skins
-
-Four themes, persisted to `localStorage`:
-
-- **Dark** — VT323 pixel font, near-black bg, station accent color drives the active row + play button.
-- **Paper** — VT323 on cream, station accent.
-- **Fantasy** — Fredoka rounded font, pastel pink/lavender bg, gradient title.
-- **Clippy** — Comic Sans MS, retro Word-doc chrome with Win98 bevel buttons.
-
-Fantasy and Clippy ignore the per-station accent so the skin's identity stays coherent. Switch in **CONFIG** mode (gear icon).
-
-## Persistence (localStorage)
-
-| Key                  | Purpose                                       |
-|----------------------|-----------------------------------------------|
-| `wh:disabled`        | Array of station ids the user has hidden      |
-| `wh:skin`            | Current skin id                               |
-| `wh:lastStationId`   | Most recently played station, for auto-attach |
-
-## The `/import-station` skill
-
-Project skill at `.claude/skills/import-station/SKILL.md`. Iterative by design — process one station at a time so progress survives interrupted sessions, and the skill's "Patterns we've seen" section sharpens after each station.
+Project skills, iterative by design — one station per run so progress survives
+interrupted sessions:
 
 ```
-/import-station <id>
+/import-station <id>        # new station, resume a parked one, or refresh a rotted URL
+/import-now-playing <id>    # wire up / re-check the metadata source
 ```
 
-Same command for: brand new station (scaffolds from `_template.md`), resuming a parked one, or refreshing a `verified`/`added` whose URL has rotted.
+Quick dashboard: `grep -H '^status:' content/stations/*.md`
 
-### Quick status dashboard
+## The web player
 
-```sh
-grep -H '^status:' stations/*.md
-```
-
-Or to see what's left:
-
-```sh
-grep -l 'status: pending\|status: researching\|status: broken' stations/*.md
-```
+- **Playback**: MP3/AAC via native `<audio>`; HLS native on Safari, `hls.js`
+  lazy-loaded elsewhere. Auto-skip to the next station on fatal stream errors;
+  stuck-time watcher and reattach-on-wake hardening for lock-screen listening.
+- **PWA**: installable (Android Chrome / iOS Safari), offline shell via
+  service worker, Media Session lock-screen controls.
+- **Now-playing**: `api/now-playing.php?id=<id>` dispatches to a per-source
+  PHP fetcher with disk caching; the frontend polls every 30 s while playing
+  and visible.
+- **Skins**: Dark, Paper, Fantasy, Clippy — persisted to `localStorage`.
 
 ## Development
 
 ```sh
-python3 build.py
-php -S 127.0.0.1:3000 -t public
+python3 tools/build.py                        # rebuild artifacts after content/ edits
+php -S 127.0.0.1:3000 -t players/web/public   # serve locally with working PHP API
 ```
 
-`build.py` writes [public/stations.json](public/stations.json) from the per-station files in [stations/](stations/). For local development, rerun it after station changes, then serve [public/](public/) with PHP's built-in server so `/api/*.php` works the same way it does on the deploy target.
+The build is idempotent — with no content changes it rewrites nothing. Icon
+downscaling for the m5 pack needs Pillow (imported lazily; only when an icon
+actually changed).
 
-### Building the static stations artifact
+For the M5 firmware: see [players/m5cores3/README.md](players/m5cores3/README.md)
+(PlatformIO; `pio run`, `pio run -t upload`, `python3 tools/build.py --seed-m5`
++ `pio run -t uploadfs`).
 
-```sh
-python3 build.py          # writes public/stations.json from stations/<id>.json + _order.json
-```
+## Deploy (web, authoritative)
 
-Run this before deploying to any PHP-ready host.
+Production assumes nginx + PHP-FPM (or any static + PHP host).
 
-## Deploy
+1. `python3 tools/build.py` and commit any artifact changes.
+2. rsync `players/web/public/` to the docroot.
+3. PHP-FPM handles `api/*.php`; `api/cache/` writable by the PHP user.
+4. HTTPS terminated at the server (required for PWA install and device TLS).
 
-Production assumes nginx + PHP-FPM (or any static + PHP host). No Bun or Node runtime is required.
+Cache rules live in `players/web/public/.htaccess` (Apache/LiteSpeed); mirror
+them in nginx where applicable — `/content/**/manifest.json` must never be
+served stale (see CONTENT-API.md §Cache policy).
 
-1. `python3 build.py` to refresh `public/stations.json`.
-2. Sync [public/](public/) to the docroot.
-3. Configure PHP-FPM for `*.php` under `/api/`. Make sure `public/api/cache/` is writable by the PHP user.
-4. nginx serves everything else as static files. PWA install requires HTTPS — terminate TLS at nginx.
+Firmware releases for the M5 player follow the runbook in
+[docs/CONTENT-API.md](docs/CONTENT-API.md#firmware-release-runbook-m5cores3).
 
-Service worker scope is `/`, so nothing special is needed in nginx beyond serving `sw.js` with the right MIME type.
+## License
+
+GPL-3.0 — see [LICENSE](LICENSE). The M5 firmware links GPL-3.0
+[ESP32-audioI2S](https://github.com/schreibfaul1/ESP32-audioI2S).

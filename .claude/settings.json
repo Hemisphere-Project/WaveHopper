@@ -4,7 +4,7 @@
       "Bash(curl -sL https://www.thelotradio.com/ -o /tmp/thelot_home.html -w \"http=%{http_code} size=%{size_download} url=%{url_effective}\\\\n\")",
       "Bash(curl --max-time 8 -sL https://livepeercdn.studio/hls/85c28sa2o8wppm58/index.m3u8)",
       "Bash(curl --max-time 8 -sI -L https://livepeercdn.studio/hls/85c28sa2o8wppm58/index.m3u8)",
-      "Bash(python3 -c \"import json; d=json.load\\(open\\('/home/mgr/Bakery/WaveHopper/public/stations.json'\\)\\); print\\(f'{len\\(d\\)} entries'\\); [print\\(f'  {e[\\\\\"id\\\\\"]:25s} {e[\\\\\"format\\\\\"]:5s} {e[\\\\\"city\\\\\"]:15s} {e[\\\\\"url\\\\\"][:70]}'\\) for e in d[-3:]]\")",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('/home/mgr/Bakery/WaveHopper/players/web/public/stations.json'\\)\\); print\\(f'{len\\(d\\)} entries'\\); [print\\(f'  {e[\\\\\"id\\\\\"]:25s} {e[\\\\\"format\\\\\"]:5s} {e[\\\\\"city\\\\\"]:15s} {e[\\\\\"url\\\\\"][:70]}'\\) for e in d[-3:]]\")",
       "Bash(curl -sL https://lyl.live/ -o /tmp/lyl_home.html -w \"http=%{http_code} size=%{size_download} url=%{url_effective}\\\\n\")",
       "Bash(curl -sL https://lyl.live/static/js/main.74429307.chunk.js -o /tmp/lyl_main.js -w \"main=%{size_download}\\\\n\")",
       "Bash(curl -sL https://lyl.live/static/js/16.8dc7d35f.chunk.js -o /tmp/lyl_16.js -w \"16=%{size_download}\\\\n\")",

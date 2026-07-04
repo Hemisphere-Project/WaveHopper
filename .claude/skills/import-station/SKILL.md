@@ -11,8 +11,8 @@ You are extending WaveHopper's station catalog by cracking the stream URL of **o
 
 The user invokes this skill with a station id (e.g. `nts`, `noods`, `dublab`).
 
-- If `stations/<id>.md` exists, read it for prior state.
-- If it does not exist, copy `stations/_template.md` to `stations/<id>.md` and ask the user for the homepage URL before proceeding.
+- If `content/stations/<id>.md` exists, read it for prior state.
+- If it does not exist, copy `content/stations/_template.md` to `content/stations/<id>.md` and ask the user for the homepage URL before proceeding.
 
 ## State machine
 
@@ -29,7 +29,7 @@ Always set `last_checked:` to today's ISO date when you touch a station.
 
 ## Playbook
 
-1. **Read state.** Open `stations/<id>.md`. Note channels listed and any prior extraction attempts. Set status to `researching`.
+1. **Read state.** Open `content/stations/<id>.md`. Note channels listed and any prior extraction attempts. Set status to `researching`.
 2. **Fetch the homepage** with WebFetch. Save the response or the relevant excerpts.
 3. **Grep the obvious** in the HTML/inline JS:
    - File extensions: `.mp3`, `.m3u8`, `.aac`, `.ogg`, `.pls`
@@ -47,7 +47,7 @@ Always set `last_checked:` to today's ISO date when you touch a station.
    - Content-Type is `audio/mpeg`, `audio/aac`, `audio/ogg`, or `application/vnd.apple.mpegurl` (HLS)
    - URL scheme is `https` (otherwise the relay is mandatory, not optional — note this in the MD)
    - Note presence/absence of `Access-Control-Allow-Origin` (matters for Web Audio API, not for `<audio>`)
-7. **Update `stations/<id>.md`** with everything found:
+7. **Update `content/stations/<id>.md`** with everything found:
    - Tick channels, fill stream URLs
    - Ensure the frontmatter `site:` is present and points at the canonical station homepage used for the in-app title link
    - Fill the Verification block (format, scheme, CORS, mixed-content risk)
@@ -62,10 +62,10 @@ Always set `last_checked:` to today's ISO date when you touch a station.
 
    **When to use the URL directly vs. bundle locally.** Chrome's MediaSession art picker is picky:
    - Use the remote URL directly **only** if the source is a square PNG/JPEG/WebP at ≥128×128. Most apple-touch-icons (180×180 PNG) qualify.
-   - **Bundle locally** if the source is `.ico`, `<128px`, or non-square (og:image hero). Chrome won't decode `.ico` for MediaSession and downscales tiny PNGs to nothing. Process the source with PIL: pick the largest frame from `.ico`, center-crop non-square images, resize to 192×192 with `Image.LANCZOS`, save as `public/img/stations/<id>.png`, and set `"icon": "/img/stations/<id>.png"` (relative path served same-origin). Add the new path to `SWR_ASSETS` in `public/sw.js` so it caches with the rest of the app shell.
+   - **Bundle locally** if the source is `.ico`, `<128px`, or non-square (og:image hero). Chrome won't decode `.ico` for MediaSession and downscales tiny PNGs to nothing. Process the source with PIL: pick the largest frame from `.ico`, center-crop non-square images, resize to 192×192 with `Image.LANCZOS`, save as `content/icons/<id>.png`, and set `"icon": "/img/stations/<id>.png"` (the build copies `content/icons/` into the web docroot at that path, and emits a 64×64 version into the m5 device pack). Add the new `/img/stations/<id>.png` path to `SWR_ASSETS` in `players/web/public/sw.js` so it caches with the rest of the app shell.
 
    If nothing usable exists at all, omit `icon` — the app falls back to the WaveHopper logo. Do not grab logos from third-party CDNs.
-9. **Write `stations/<id>.json`** (only if verified), one file per channel. Copy the homepage from the MD frontmatter's `site:` field into `homepage`. Schema:
+9. **Write `content/stations/<id>.json`** (only if verified), one file per channel. Copy the homepage from the MD frontmatter's `site:` field into `homepage`. Schema:
    ```json
    {
      "id": "nts-1",
@@ -79,7 +79,7 @@ Always set `last_checked:` to today's ISO date when you touch a station.
      "icon": "https://www.nts.live/apple-touch-icon.png"
    }
    ```
-   Then add the new id to `stations/_order.json` at the position where it should appear in the UI list (preserve existing order — usually append, or group with sibling channels). After writing, set the MD status to `added` and run `python3 build.py` from the repo root to regenerate `public/stations.json` (the static artifact deployed alongside the rest of `public/`).
+   Then add the new id to `content/_order.json` at the position where it should appear in the UI list (preserve existing order — usually append, or group with sibling channels). After writing, set the MD status to `added` and run `python3 tools/build.py` from the repo root to regenerate the committed artifacts (`players/web/public/stations.json`, icon copies, and the m5 device pack — see `docs/CONTENT-API.md`).
 10. **Update the "Patterns we've seen" section below** with anything new and reusable. This is how the skill gets sharper.
 
 ## Patterns we've seen
@@ -122,5 +122,5 @@ A short summary: station id, channels found, URLs (truncated), new status, and o
 ## Out of scope
 
 - Do not bulk-research multiple stations in one invocation.
-- Do not write frontend or relay code from this skill — only the station MD, the per-station `stations/<id>.json`, and `stations/_order.json` (plus the regenerated `stations.json`).
+- Do not write frontend or relay code from this skill — only the station MD, the per-station `content/stations/<id>.json`, `content/_order.json`, a bundled icon in `content/icons/` + its `SWR_ASSETS` entry when needed (plus the artifacts regenerated by `tools/build.py`).
 - Do not invent channels the user didn't ask for; if you discover extra channels on a station, list them as candidates and ask before adding.

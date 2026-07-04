@@ -1,0 +1,13 @@
+# WaveHopper CoreS3 partition table — 16 MB flash, dual OTA slots + LittleFS.
+#
+# FROZEN ONCE DEVICES OTA: the running firmware writes updates into the *old*
+# table's slot, so resizing/moving app0/app1 after a device has OTA'd bricks
+# the update path (USB reflash recovers). Change only with a coordinated plan.
+#
+# Name,     Type, SubType,  Offset,   Size,     Flags
+nvs,        data, nvs,      0x9000,   0x5000,
+otadata,    data, ota,      0xE000,   0x2000,
+app0,       app,  ota_0,    0x10000,  0x400000,
+app1,       app,  ota_1,    0x410000, 0x400000,
+littlefs,   data, spiffs,   0x810000, 0x7E0000,
+coredump,   data, coredump, 0xFF0000, 0x10000,
