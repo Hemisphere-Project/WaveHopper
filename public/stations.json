@@ -23,7 +23,7 @@
     "format": "hls",
     "color": "#ff6600",
     "homepage": "https://www.thelotradio.com/",
-    "icon": "/img/stations/thelot.png",
+    "icon": "/img/stations/thelot-alt.png",
     "nowPlaying": {
       "type": "thelot-html",
       "endpoint": "https://www.thelotradio.com/"
@@ -38,7 +38,7 @@
     "format": "aac",
     "color": "#8a8a8a",
     "homepage": "https://www.kioskradio.com",
-    "icon": "/img/stations/kiosk.png",
+    "icon": "/img/stations/kiosk-alt.png",
     "nowPlaying": {
       "type": "airtime",
       "endpoint": "https://kioskradiobxl.airtime.pro/api/live-info-v2"
@@ -53,7 +53,7 @@
     "format": "hls",
     "color": "#e94e24",
     "homepage": "https://lyl.live/",
-    "icon": "/img/stations/lyl.png",
+    "icon": "/img/stations/lyl-alt.png",
     "nowPlaying": {
       "type": "lyl-graphql"
     }

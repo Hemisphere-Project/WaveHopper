@@ -7,7 +7,7 @@
   "format": "hls",
   "color": "#e94e24",
   "homepage": "https://lyl.live/",
-  "icon": "/img/stations/lyl.png",
+  "icon": "/img/stations/lyl-alt.png",
   "nowPlaying": {
     "type": "lyl-graphql"
   }
