@@ -4,6 +4,8 @@
 #include <M5Unified.h>
 #include <WiFi.h>
 
+#include <algorithm>
+
 #include "catalog.h"
 #include "config.h"
 #include "font_vt323.h"
@@ -58,10 +60,52 @@ int g_marqueeTextW = 0;
 bool g_marqueeActive = false;
 uint32_t g_marqueeNextStep = 0;
 
+// The embedded VT323 covers Latin-1 only. Keep valid ≤U+00FF sequences, map
+// common typographic/status codepoints to ASCII, drop the rest — wavezero's
+// live-dot (●/🔴) and friends would otherwise render as nothing/garbage.
+String sanitizeForFont(const String& in) {
+  String out;
+  out.reserve(in.length());
+  const uint8_t* p = (const uint8_t*)in.c_str();
+  while (*p) {
+    uint32_t cp = 0;
+    int len = 1;
+    if (*p < 0x80) {
+      cp = *p;
+    } else if ((*p >> 5) == 0x6 && (p[1] & 0xC0) == 0x80) {
+      cp = ((*p & 0x1F) << 6) | (p[1] & 0x3F);
+      len = 2;
+    } else if ((*p >> 4) == 0xE && (p[1] & 0xC0) == 0x80 && (p[2] & 0xC0) == 0x80) {
+      cp = ((*p & 0x0F) << 12) | ((p[1] & 0x3F) << 6) | (p[2] & 0x3F);
+      len = 3;
+    } else if ((*p >> 3) == 0x1E && (p[1] & 0xC0) == 0x80 && (p[2] & 0xC0) == 0x80 &&
+               (p[3] & 0xC0) == 0x80) {
+      cp = ((*p & 0x07) << 18) | ((p[1] & 0x3F) << 12) | ((p[2] & 0x3F) << 6) |
+           (p[3] & 0x3F);
+      len = 4;
+    }
+    if (cp <= 0xFF) {
+      for (int i = 0; i < len; ++i) out += (char)p[i];  // keep original bytes
+    } else {
+      switch (cp) {
+        case 0x2018: case 0x2019: out += '\''; break;
+        case 0x201C: case 0x201D: out += '"'; break;
+        case 0x2010: case 0x2013: case 0x2014: out += '-'; break;
+        case 0x2026: out += "..."; break;
+        case 0x2022: case 0x25CF: case 0x26AB: case 0x2B24: case 0x25C9:
+        case 0x1F534: case 0x1F518: out += '*'; break;
+        default: break;  // drop silently
+      }
+    }
+    p += len;
+  }
+  return out;
+}
+
 String effectiveTitle() {
-  if (!g_np.title.isEmpty()) return g_np.title;
+  if (!g_np.title.isEmpty()) return sanitizeForFont(g_np.title);
   // ICY fallback — some stations send a bare " - " separator as the title.
-  String icy(g_snap.streamTitle);
+  String icy = sanitizeForFont(String(g_snap.streamTitle));
   String stripped(icy);
   stripped.replace("-", "");
   stripped.trim();
@@ -173,7 +217,8 @@ void buildCard() {
   g_card.setTextDatum(top_center);
   g_card.setTextColor(COL_DIM, COL_BG);
   if (g_snap.state == PlayerState::Playing) {
-    if (!g_np.subtitle.isEmpty()) g_card.drawString(g_np.subtitle.c_str(), W / 2, 192);
+    if (!g_np.subtitle.isEmpty())
+      g_card.drawString(sanitizeForFont(g_np.subtitle).c_str(), W / 2, 192);
   } else {
     String msg = player::stateName(g_snap.state);
     if (g_snap.state == PlayerState::Tuning) msg = "tuning ...";
@@ -223,7 +268,8 @@ void drawToast(int current) {
     int y = TY + 12 + row * 27;
     if (idx < 0 || idx >= n) continue;  // no wrap — shows list edges
     const Station& s = catalog::at(idx);
-    String label = s.name + (s.channel.isEmpty() ? "" : " " + s.channel);
+    bool showCh = !s.channel.isEmpty() && s.channel != "main";
+    String label = s.name + (showCh ? " " + s.channel : "");
     if (row == 2) {
       // Active row: accent background, dark text — the web's active-row look.
       d.fillRoundRect(TX + 8, y - 4, TW - 16, 26, 4, s.color565);
@@ -371,6 +417,17 @@ void volumeOverlay(uint8_t vol) {
   if (millis() >= g_overlayUntil) pushCard();  // fresh card under the bar
   g_overlayUntil = millis() + 1500;
   drawVolumeBar(vol);
+}
+
+void bufferGauge(uint32_t buffered, uint32_t target) {
+  if (g_settingsOpen || !g_haveCard || millis() < g_overlayUntil) return;
+  if (!target) return;
+  int w = std::min<uint32_t>(W, (uint64_t)buffered * W / target);
+  uint16_t col = (buffered * 2 >= target)   ? rgb565(0x2a, 0xeb, 0x62)
+                 : (buffered * 5 >= target) ? rgb565(0xeb, 0xae, 0x2a)
+                                            : rgb565(0xeb, 0x2a, 0x2a);
+  M5.Display.fillRect(0, 6, w, 2, col);
+  M5.Display.fillRect(w, 6, W - w, 2, COL_BG);
 }
 
 void tick() {

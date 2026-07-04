@@ -3,6 +3,7 @@
 #include <Audio.h>
 #include <WiFi.h>
 
+#include <algorithm>
 #include <atomic>
 #include <vector>
 
@@ -42,6 +43,12 @@ uint8_t g_attempt = 0;
 bool g_tuneFast = false;  // manual surf: short prebuffer for fast feedback
 uint32_t g_deadline = 0;
 std::vector<bool> g_failedSweep;
+// Adaptive prebuffer: stations that repeatedly drain their cushion earn a
+// bigger one (per session). Grows 1.5x per chronic-low event, capped. Observed
+// supply pattern (Airtime + this wifi): macro-bursts with 10-20 s sub-realtime
+// stretches — cushions converge around 200-350 KB. Lib buffer is 640 KB total.
+std::vector<uint32_t> g_targets;
+constexpr uint32_t kTargetCap = 393216;  // ~16 s at 192 kbps
 uint32_t g_sweepAt = 0;
 uint32_t g_stallSince = 0;
 uint32_t g_lastHealth = 0;
@@ -170,6 +177,7 @@ void begin(AudioProfile profile, uint8_t volume, int firstStationIndex) {
   g_profile = profile;
   g_volume = volume > 21 ? 21 : volume;
   g_failedSweep.assign(catalog::count(), false);
+  g_targets.assign(catalog::count(), WH_PREBUFFER_BYTES);
 
   Audio::audio_info_callback = onAudioEvent;
   AudioPins p = audio_out::pins(profile);
@@ -194,15 +202,10 @@ void begin(AudioProfile profile, uint8_t volume, int firstStationIndex) {
   }
 }
 
-void next() {
-  if (!catalog::count()) return;
-  manualTune(((g_current < 0 ? 0 : g_current) + 1) % (int)catalog::count());
-}
-
-void prev() {
-  if (!catalog::count()) return;
-  int n = (int)catalog::count();
-  manualTune(((g_current < 0 ? 0 : g_current) - 1 + n) % n);
+void tuneTo(int index) {
+  if (index < 0 || index >= (int)catalog::count()) return;
+  if (index == g_current && g_state == PlayerState::Playing) return;  // settled in place
+  manualTune(index);
 }
 
 void setVolume(uint8_t v) {
@@ -239,8 +242,13 @@ void tick() {
       }
       uint32_t buffered = g_audio.inBufferFilled();
       uint32_t tunedFor = WH_TUNE_TIMEOUT_MS - (g_deadline - now);
-      uint32_t targetBytes = g_tuneFast ? WH_PREBUFFER_FAST_BYTES : WH_PREBUFFER_BYTES;
-      uint32_t targetWait = g_tuneFast ? WH_PREBUFFER_FAST_WAIT_MS : WH_PREBUFFER_WAIT_MS;
+      uint32_t adaptive = g_targets.empty() ? WH_PREBUFFER_BYTES : g_targets[g_current];
+      uint32_t targetBytes = g_tuneFast ? WH_PREBUFFER_FAST_BYTES : adaptive;
+      // Scale the wait cap with the adaptive target (paced servers need time).
+      uint32_t targetWait = g_tuneFast
+                                ? WH_PREBUFFER_FAST_WAIT_MS
+                                : std::min<uint32_t>(12000, (uint64_t)WH_PREBUFFER_WAIT_MS *
+                                                                adaptive / WH_PREBUFFER_BYTES);
       bool cushionDone = buffered >= targetBytes ||
                          (tunedFor > targetWait && buffered > 8192);
       if (g_audio.isRunning() && cushionDone) {
@@ -262,7 +270,7 @@ void tick() {
     case PlayerState::Playing:
       if (g_evtEof.exchange(false) || !g_audio.isRunning()) {
         log_e("stream dropped on [%d]", g_current);
-        startTune(g_current, 2);  // one retry, then failCurrent skips
+        startTune(g_current, 1);  // full retry budget — don't rush to skip
         break;
       }
       {
@@ -292,9 +300,14 @@ void tick() {
         if (lowAccumMs > WH_REBUFFER_LOW_MS) {
           lowAccumMs = 0;
           windowStart = 0;
-          log_e("chronic low buffer on [%d] (%lu now) — rebuffering", g_current,
-                (unsigned long)buffered);
-          startTune(g_current, 2);
+          if (!g_targets.empty()) {  // this station earns a deeper cushion
+            g_targets[g_current] =
+                std::min<uint32_t>(kTargetCap, g_targets[g_current] * 3 / 2);
+          }
+          log_e("chronic low buffer on [%d] (%lu now) — rebuffering, target now %lu",
+                g_current, (unsigned long)buffered,
+                (unsigned long)(g_targets.empty() ? 0 : g_targets[g_current]));
+          startTune(g_current, 1);
           break;
         }
       }
@@ -302,12 +315,16 @@ void tick() {
         g_lastHealth = now;
         audio_out::onSampleRate(g_profile, 48000);  // SWS fault self-heal
       }
-      {  // pipeline stats — visible when built with CORE_DEBUG_LEVEL>=4
-        static uint32_t lastStat = 0;
-        if (now - lastStat >= 5000) {
+      {  // buffer diagnostics: 10 s cadence, min tracks the worst dip
+        static uint32_t lastStat = 0, minBuf = UINT32_MAX;
+        minBuf = std::min(minBuf, g_audio.inBufferFilled());
+        if (now - lastStat >= 10000) {
           lastStat = now;
-          log_d("[stat] buf=%lu heap=%lu", (unsigned long)g_audio.inBufferFilled(),
-                (unsigned long)ESP.getFreeHeap());
+          log_i("[buf] now=%lu min=%lu target=%lu heap=%lu rssi=%d",
+                (unsigned long)g_audio.inBufferFilled(), (unsigned long)minBuf,
+                (unsigned long)(g_targets.empty() ? 0 : g_targets[g_current]),
+                (unsigned long)ESP.getFreeHeap(), WiFi.RSSI());
+          minBuf = UINT32_MAX;
         }
       }
       break;
@@ -334,6 +351,9 @@ PlayerSnapshot snapshot() {
   s.state = g_state;
   s.stationIndex = g_current;
   s.volume = g_volume;
+  s.buffered = g_audio.inBufferFilled();
+  s.bufferTarget = (g_current >= 0 && !g_targets.empty()) ? g_targets[g_current]
+                                                          : WH_PREBUFFER_BYTES;
   s.generation = g_gen + g_titleGen.load();
   portENTER_CRITICAL(&g_titleMux);
   strlcpy(s.streamTitle, g_streamTitle, sizeof(s.streamTitle));

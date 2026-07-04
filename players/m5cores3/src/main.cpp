@@ -137,45 +137,84 @@ void loop() {
     return;
   }
 
-  // Touch: left/right half tap = prev/next; horizontal flick = next/prev
-  // (flick left → next, mirroring the webapp swipe).
+  PlayerSnapshot snap = player::snapshot();
+
+  // Station browsing: taps/flicks move a *display* selection through the
+  // toast; the actual tune fires only once the selection settles — rapid
+  // next-next-next never queues blocking connects.
+  static int browseIdx = -1;
+  static uint32_t browseCommitAt = 0;
+  int n = (int)catalog::count();
+  int step = 0;
   if (t.y < 240) {
     if (t.wasFlicked() && abs(t.distanceX()) > 30 &&
         abs(t.distanceX()) > abs(t.distanceY())) {
-      log_d("[input] flick dx=%d", t.distanceX());
-      if (t.distanceX() < 0) player::next();
-      else player::prev();
+      step = t.distanceX() < 0 ? 1 : -1;
     } else if (t.wasClicked()) {
-      log_d("[input] tap x=%d", t.x);
-      if (t.x < 160) player::prev();
-      else player::next();
+      step = t.x < 160 ? -1 : 1;
     }
   }
-  // Bezel buttons: A = vol down, C = vol up.
-  bool volChanged = false;
-  PlayerSnapshot snap = player::snapshot();
-  uint8_t vol = snap.volume;
-  if (M5.BtnA.wasClicked() && vol > 0)  { vol--; volChanged = true; }
-  if (M5.BtnC.wasClicked() && vol < 21) { vol++; volChanged = true; }
-  if (volChanged) {
+  if (step && n) {
+    if (browseIdx < 0) browseIdx = snap.stationIndex < 0 ? 0 : snap.stationIndex;
+    browseIdx = (browseIdx + step + n) % n;
+    browseCommitAt = millis() + 700;
+    ui::stationToast(browseIdx);
+  }
+  if (browseIdx >= 0 && millis() > browseCommitAt) {
+    player::tuneTo(browseIdx);
+    browseIdx = -1;
+  }
+
+  // Bezel buttons: A = vol down, C = vol up. wasPressed (instant) + repeat on
+  // hold — wasClicked waits out a multi-click window and felt laggy.
+  static uint32_t volRepeatAt = 0;
+  int volStep = 0;
+  if (M5.BtnA.wasPressed()) volStep = -1;
+  if (M5.BtnC.wasPressed()) volStep = 1;
+  if ((M5.BtnA.pressedFor(400) || M5.BtnC.pressedFor(400)) && millis() > volRepeatAt) {
+    volRepeatAt = millis() + 150;
+    volStep = M5.BtnA.isPressed() ? -1 : 1;
+  }
+  if (volStep) {
+    uint8_t vol = snap.volume;
+    if (volStep < 0 && vol > 0) vol--;
+    if (volStep > 0 && vol < 21) vol++;
     player::setVolume(vol);
     ui::volumeOverlay(vol);
   }
 
   snap = player::snapshot();
   bool stationChanged = snap.stationIndex != lastStationIndex;
-  if (stationChanged && lastStationIndex >= 0) ui::stationToast(snap.stationIndex);
   lastStationIndex = snap.stationIndex;
 
   now_playing::tick(snap.state == PlayerState::Playing, snap.stationIndex, stationChanged);
   NowPlaying np = now_playing::current();
 
-  if ((snap.generation != lastRenderedGen || np.generation != lastNpGen) &&
-      snap.stationIndex >= 0) {
+  if (browseIdx >= 0 && browseIdx != snap.stationIndex) {
+    // Preview card for the browsed station (not yet tuned).
+    static int lastBrowseRendered = -1;
+    if (browseIdx != lastBrowseRendered) {
+      lastBrowseRendered = browseIdx;
+      PlayerSnapshot preview = snap;
+      preview.stationIndex = browseIdx;
+      preview.state = PlayerState::Tuning;
+      preview.streamTitle[0] = '\0';
+      ui::render(preview, NowPlaying{});
+      ui::stationToast(browseIdx);  // keep the list on top of the fresh card
+    }
+  } else if ((snap.generation != lastRenderedGen || np.generation != lastNpGen) &&
+             snap.stationIndex >= 0) {
     lastRenderedGen = snap.generation;
     lastNpGen = np.generation;
     ui::render(snap, np);
   }
+
+  static uint32_t gaugeAt = 0;
+  if (snap.state == PlayerState::Playing && browseIdx < 0 && millis() > gaugeAt) {
+    gaugeAt = millis() + 1000;
+    ui::bufferGauge(snap.buffered, snap.bufferTarget);
+  }
+
   ui::tick();
 
   vTaskDelay(pdMS_TO_TICKS(5));

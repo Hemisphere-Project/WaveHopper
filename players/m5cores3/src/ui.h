@@ -30,6 +30,10 @@ SettingsAction settingsTouch(int x, int y);
 AudioOutSetting settingsAudioOut();   // pending value after Close*
 uint8_t settingsBrightness();
 
+// Thin cushion-health strip under the accent bar (green/amber/red fill
+// proportional to buffered/target). Call ~1 Hz while playing.
+void bufferGauge(uint32_t buffered, uint32_t target);
+
 // Timers: marquee scroll + overlay expiry. Call every loop.
 void tick();
 }  // namespace ui

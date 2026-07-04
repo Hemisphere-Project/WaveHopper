@@ -15,6 +15,8 @@ struct PlayerSnapshot {
   int stationIndex = -1;
   uint8_t volume = 12;
   uint32_t generation = 0;  // bumps on any visible change — cheap UI dirty flag
+  uint32_t buffered = 0;      // stream buffer fill (bytes) — UI gauge
+  uint32_t bufferTarget = 0;  // current adaptive prebuffer target
   char streamTitle[160] = "";  // latest ICY title ("" if none)
 };
 
@@ -22,8 +24,8 @@ namespace player {
 // Spawns the player task. Catalog must be loaded first.
 void begin(AudioProfile profile, uint8_t volume, int firstStationIndex);
 
-void next();
-void prev();
+// Debounced-browse commit: tune to an absolute catalog index (fast prebuffer).
+void tuneTo(int index);
 void setVolume(uint8_t v);  // 0..21, clamped
 
 // Supervisor pump — call from loop() at ~10 Hz+. Handles tune deadlines,
