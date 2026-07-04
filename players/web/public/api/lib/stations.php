@@ -1,6 +1,6 @@
 <?php
-// Loads public/stations.json once per request and returns by id.
-// stations.json is the build artifact produced by `python3 build.py`,
+// Loads the docroot stations.json once per request and returns by id.
+// stations.json is the build artifact produced by `python3 tools/build.py`,
 // served directly to the browser AND consumed server-side here. Single source
 // of truth at deploy time.
 

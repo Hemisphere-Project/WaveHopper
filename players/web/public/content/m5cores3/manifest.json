@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "d12f93a7133bd8ef1563bd802aa45c1f6593dd6b865452a7fdebe9ba6ffaa20b",
+  "generated": "2026-07-04T08:16:44Z",
+  "totalSize": 20419,
+  "files": [
+    {
+      "path": "icons/kiosk-alt.png",
+      "sha256": "793ab231081cee2b17b53982700329158dd8db5bf3efda6267c869db0976ac58",
+      "size": 2861,
+      "srcSha256": "26597309a5f865ea5474b7f2f9e72456cf068c214b23e90bda916f8fd48a12b4"
+    },
+    {
+      "path": "icons/lyl-alt.png",
+      "sha256": "be978e94d79cfb7e3ea76f3cf46db0953a93392df552e2d62cdd96e70fd9a5cc",
+      "size": 6588,
+      "srcSha256": "c4f75ee5057986564e9b569b2c3ff56aec5d5ea92d1a04ca57e1a44195df0bdd"
+    },
+    {
+      "path": "icons/thelot-alt.png",
+      "sha256": "5fc698dc044cec5fb57b5c2b2f2f4927aa25cb687bb28ec39234427f47c3b681",
+      "size": 3624,
+      "srcSha256": "5982bdf0abcb46838c60bcb8e9a72bbe8888ca29d013e948ff03f6d0239b4173"
+    },
+    {
+      "path": "stations.json",
+      "sha256": "788e72e2565fe1f0648de594cb6dcfbd71e7ef83b219c2870d1323ea9d800c82",
+      "size": 7346
+    }
+  ]
+}
