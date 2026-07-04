@@ -87,6 +87,29 @@ void loop() {
   M5.update();
   player::tick();
 
+  // Settings overlay: modal — BtnB hold opens, taps route to it.
+  if (ui::settingsOpen()) {
+    auto st = M5.Touch.getDetail();
+    if (st.wasClicked()) {
+      ui::SettingsAction action = ui::settingsTouch(st.x, st.y);
+      if (action != ui::SettingsAction::None) {
+        settings.brightness = ui::settingsBrightness();
+        whnvs::saveBrightness(settings.brightness);
+        if (action == ui::SettingsAction::CloseAndReboot) {
+          whnvs::saveAudioOut(ui::settingsAudioOut());
+          ESP.restart();
+        }
+      }
+    }
+    vTaskDelay(pdMS_TO_TICKS(5));
+    return;
+  }
+  if (M5.BtnB.pressedFor(600)) {
+    ui::settingsShow(settings.audioOut, settings.brightness);
+    vTaskDelay(pdMS_TO_TICKS(5));
+    return;
+  }
+
   // Touch: left/right half tap = prev/next; horizontal flick = next/prev
   // (flick left → next, mirroring the webapp swipe).
   auto t = M5.Touch.getDetail();

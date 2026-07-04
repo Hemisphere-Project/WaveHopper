@@ -1,12 +1,19 @@
 #include "audio_out.h"
 
+#include <M5Module_Audio.h>
 #include <M5Unified.h>
+#include <Wire.h>
 
 #include "config.h"
 
 namespace {
 
 constexpr uint32_t kI2cFreq = 400000;
+
+// ES8388 codec on the Module Audio (M144). Wire (port 0) shares the physical
+// bus with M5.In_I2C (port 1): only ever touched here, at boot, before the UI
+// loop starts polling the touch controller — sequential access, no collisions.
+M5ModuleAudio g_moduleAudio;
 
 void aw88298Write(uint8_t reg, uint16_t val) {
   // MSB first on the wire — matches M5Unified's aw88298_write_reg, which
@@ -111,10 +118,20 @@ bool init(AudioProfile p, uint32_t initialSampleRate) {
       // though it shares GPIO13 (it has no BCLK either, belt and braces).
       internalAmpDisable();
       return true;
-    case AudioProfile::ModuleAudio:
-      // ES8388 codec init lands in M4 (needs the M5Module-Audio library).
-      log_e("module-audio profile not implemented yet");
-      return false;
+    case AudioProfile::ModuleAudio: {
+      internalAmpDisable();  // shared GPIO13 data line — keep the amp dark
+      // I2C-only begin: configures the ES8388, leaves I2S to ESP32-audioI2S.
+      // Prerequisite: the module's physical pin switch must be on B (CoreS3).
+      if (!g_moduleAudio.begin(Wire, 12, 11, WH_I2C_MODAUDIO, kI2cFreq)) {
+        log_e("Module Audio codec init failed");
+        return false;
+      }
+      g_moduleAudio.setSpeakerOutput(DAC_OUTPUT_OUT1);  // TRRS headphone out
+      g_moduleAudio.setSampleRate(SAMPLE_RATE_48K);     // matches pinned I2S clock
+      g_moduleAudio.setSpeakerVolume(80);  // codec level; soft volume in audioI2S
+      log_i("Module Audio (ES8388) initialized");
+      return true;
+    }
   }
   return false;
 }

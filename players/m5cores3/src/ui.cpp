@@ -2,6 +2,7 @@
 
 #include <LittleFS.h>
 #include <M5Unified.h>
+#include <WiFi.h>
 
 #include "catalog.h"
 #include "config.h"
@@ -19,6 +20,21 @@ NowPlaying g_np;
 bool g_haveCard = false;
 
 uint32_t g_overlayUntil = 0;  // volume bar or toast owns the screen until then
+
+// Settings overlay state
+bool g_settingsOpen = false;
+AudioOutSetting g_setAout = AudioOutSetting::Auto;
+AudioOutSetting g_setAoutOriginal = AudioOutSetting::Auto;
+uint8_t g_setBright = 200;
+
+const char* aoutName(AudioOutSetting a) {
+  switch (a) {
+    case AudioOutSetting::Internal:    return "internal";
+    case AudioOutSetting::Rca:         return "rca module";
+    case AudioOutSetting::ModuleAudio: return "module audio";
+    default:                           return "auto";
+  }
+}
 
 // Marquee state
 String g_marqueeText;
@@ -190,6 +206,49 @@ void drawToast(int current) {
   d.endWrite();
 }
 
+void drawSettings() {
+  auto& d = M5.Display;
+  d.startWrite();
+  d.fillScreen(TFT_BLACK);
+  d.setFont(&fonts::Font8x8C64);
+  d.setTextDatum(top_center);
+  d.setTextSize(2);
+  d.setTextColor(TFT_WHITE, TFT_BLACK);
+  d.drawString("SETTINGS", W / 2, 10);
+
+  d.setTextSize(1);
+  d.setTextDatum(middle_left);
+  d.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+  d.drawString("audio out", 16, 62);
+  d.drawString("brightness", 16, 100);
+  d.setTextDatum(middle_right);
+  d.setTextSize(2);
+  d.setTextColor(TFT_WHITE, TFT_BLACK);
+  char buf[24];
+  snprintf(buf, sizeof(buf), "< %s >", aoutName(g_setAout));
+  d.drawString(buf, W - 16, 62);
+  snprintf(buf, sizeof(buf), "< %d%% >", g_setBright * 100 / 255);
+  d.drawString(buf, W - 16, 100);
+
+  d.setTextSize(1);
+  d.setTextDatum(top_left);
+  d.setTextColor(0x7BEF, TFT_BLACK);
+  snprintf(buf, sizeof(buf), "fw %s (%d)", WH_FW_VERSION, WH_FW_BUILD);
+  d.drawString(buf, 16, 136);
+  String cv = "content " + catalog::contentVersion().substring(0, 12);
+  d.drawString(cv.c_str(), 16, 152);
+  String ip = "ip " + WiFi.localIP().toString();
+  d.drawString(ip.c_str(), 16, 168);
+
+  d.setTextDatum(middle_center);
+  d.setTextSize(2);
+  bool reboots = g_setAout != g_setAoutOriginal;
+  d.fillRoundRect(W / 2 - 90, 196, 180, 32, 8, TFT_DARKGREY);
+  d.setTextColor(TFT_WHITE, TFT_DARKGREY);
+  d.drawString(reboots ? "SAVE+REBOOT" : "CLOSE", W / 2, 212);
+  d.endWrite();
+}
+
 }  // namespace
 
 namespace ui {
@@ -229,8 +288,41 @@ void render(const PlayerSnapshot& snap, const NowPlaying& np) {
   g_haveCard = true;
   setMarquee(effectiveTitle());
   buildCard();
-  if (millis() >= g_overlayUntil) pushCard();
+  if (!g_settingsOpen && millis() >= g_overlayUntil) pushCard();
 }
+
+bool settingsOpen() { return g_settingsOpen; }
+
+void settingsShow(AudioOutSetting audioOut, uint8_t brightness) {
+  g_settingsOpen = true;
+  g_setAout = g_setAoutOriginal = audioOut;
+  g_setBright = brightness;
+  drawSettings();
+}
+
+SettingsAction settingsTouch(int x, int y) {
+  if (y > 190 && x > W / 2 - 90 && x < W / 2 + 90) {  // CLOSE / SAVE+REBOOT
+    g_settingsOpen = false;
+    bool reboot = g_setAout != g_setAoutOriginal;
+    if (!reboot && g_haveCard) pushCard();
+    return reboot ? SettingsAction::CloseAndReboot : SettingsAction::Close;
+  }
+  if (y > 46 && y < 80) {  // audio out cycle
+    g_setAout = static_cast<AudioOutSetting>((static_cast<uint8_t>(g_setAout) + 1) % 4);
+    drawSettings();
+  } else if (y > 84 && y < 118) {  // brightness cycle, applied live
+    static const uint8_t levels[] = {60, 120, 200, 255};
+    size_t i = 0;
+    while (i < 3 && levels[i] <= g_setBright) ++i;
+    g_setBright = levels[g_setBright >= 255 ? 0 : i];
+    M5.Display.setBrightness(g_setBright);
+    drawSettings();
+  }
+  return SettingsAction::None;
+}
+
+AudioOutSetting settingsAudioOut() { return g_setAout; }
+uint8_t settingsBrightness() { return g_setBright; }
 
 void stationToast(int currentIndex) {
   if (!g_haveCard) return;
@@ -246,6 +338,7 @@ void volumeOverlay(uint8_t vol) {
 }
 
 void tick() {
+  if (g_settingsOpen) return;  // modal — nothing else touches the screen
   uint32_t now = millis();
   if (g_overlayUntil && now >= g_overlayUntil) {
     g_overlayUntil = 0;

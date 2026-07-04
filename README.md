@@ -16,7 +16,7 @@ contract.
 | Player | Status | Code | Content updates |
 |---|---|---|---|
 | Web / PWA | live | `players/web/` | on every load from `/stations.json` |
-| M5Stack CoreS3 | skeleton | `players/m5cores3/` | self-syncs `/content/m5cores3/` pack + self-OTA |
+| M5Stack CoreS3 | working prototype | `players/m5cores3/` | self-syncs `/content/m5cores3/` pack + self-OTA |
 | iOS / Android (Capacitor) | planned | `players/mobile/` | same endpoints as the PWA; binary via stores |
 
 Each player directory has its own `README.md` (humans) and `CLAUDE.md`

@@ -15,91 +15,104 @@ in the root `CLAUDE.md`; the normative cross-player contract is
 
 ## Contract summary (inline for convenience — CONTENT-API.md is normative)
 
-- Base host: `https://waverz.net`. The firmware makes TLS requests to this host
-  **only**, for exactly three endpoint families:
-  - `/content/m5cores3/{manifest.json, stations.json, icons/*.png}` — content pack
-  - `/content/firmware/m5cores3/manifest.json` (+ the versioned `.bin` it points at)
-  - `/api/now-playing.php?id=<id>` — shared now-playing metadata
-  Audio stream URLs from `stations.json` go to arbitrary hosts (unverified TLS —
-  accepted trade-off; never send anything but the stream GET there).
-- Content sync semantics: **equality**, not ordering — sync iff remote
-  `contentVersion` != locally recorded one; then per-file sha256 diff.
-- Firmware update semantics: update iff remote `build` (integer) **>**
-  compiled-in `WH_FW_BUILD`. Never trust `version` (semver) for comparison.
-- If remote content `schemaVersion` > `WH_CONTENT_SCHEMA_SUPPORTED`: skip
-  content sync but **still check the firmware manifest** — that's how a stale
-  device gets unstuck.
-- Ignore unknown JSON keys everywhere. Reject manifest paths containing `..`
-  or a leading `/`.
-- Sync algorithm (staging → verify → ordered commit → manifest last as commit
-  marker → prune → wipe staging; free-space precheck with `totalSize` + 64 KB
-  slack; boot wipes `.staging/`): implement exactly as written in
-  CONTENT-API.md §Device sync.
+- Base host: `https://waverz.net`, verified TLS (ISRG roots in
+  `include/certs.h`, SNTP required first). Three endpoint families only:
+  `/content/m5cores3/*`, `/content/firmware/m5cores3/*`,
+  `/api/now-playing.php?id=<id>`. Audio streams go to arbitrary hosts
+  (unverified — accepted trade-off).
+- Content sync: **equality** on `contentVersion`, per-file sha256 diff,
+  staged atomic commit — implemented in `content_sync.cpp`; don't reinvent.
+- Firmware: update iff remote `build` (integer) **>** compiled `WH_FW_BUILD`.
+- Ignore unknown JSON keys; reject `..`/absolute manifest paths; if remote
+  content `schemaVersion` > supported, skip sync but still check firmware.
+- The API responds **chunked** over HTTP/1.1: parse via `getString()`, never
+  `getStream()`, for JSON endpoints. Pack files/binaries are static
+  (Content-Length) — stream those.
 
 ## Toolchain — do not "fix" these
 
-- `platform` is a **pinned pioarduino release URL** because the official
-  `espressif32` platform is stuck on Arduino core 2.x, which ESP32-audioI2S
-  ≥ 3.x cannot compile against. Never simplify to `platform = espressif32`.
-  Upgrades = deliberately bump the pinned URL, then full `pio run` + on-device test.
-- ESP32-audioI2S is pinned by git tag (registry copy is a stale 2.0.7).
-- M5Unified and M5GFX versions move **together**.
-- Compile gate: `pio run` must pass. There is no device CI — every OTA-published
+- `platform` is a **pinned pioarduino release URL** (official `espressif32` is
+  stuck on Arduino core 2.x, which ESP32-audioI2S ≥ 3.x cannot compile
+  against). pioarduino requires **Python ≤ 3.13**: the working CLI is
+  `~/.platformio/penv-py313/bin/platformio`.
+- ESP32-audioI2S and M5Module-Audio are pinned by git tag/commit (registry
+  copies are stale). M5Unified and M5GFX move **together**.
+- Compile gate: `pio run` (both envs). No device CI — every OTA-published
   binary gets hand-tested on the in-hand device first.
+- PlatformIO reorders `-U`/`-D` build flags: never mix `${...}` inheritance
+  with undef-then-redefine overrides (leaves macros undefined — bit us once).
 
-## Hardware facts (CoreS3 SE)
+## Hardware truths (paid for in debugging hours — do not rediscover)
 
-- ESP32-S3, 16 MB QIO flash, 8 MB octal PSRAM, 320×240 capacitive touch,
-  microSD slot, USB-C.
-- Audio out: AW88298 amp. It must be configured over the internal I2C bus
-  before I2S output — that is M5Unified's job (`M5.begin()`), but `M5.Speaker`
-  then owns the I2S peripheral. **Handoff pattern**: let `M5.begin()` program
-  the amp, keep `M5.Speaker` stopped, drive I2S from ESP32-audioI2S with
-  `audio.setPinout(34 /*BCLK*/, 33 /*LRCK*/, 13 /*DOUT*/, 0 /*MCLK*/)`.
-  This is the project's #1 technical risk — spike it before building UI on top.
-  **Fallback if it fights you**: earlephilhower's ESP8266Audio decoding into
-  `M5.Speaker.playRaw()` — M5Unified ships exactly this as its WebRadio example
-  (lower risk, weaker AAC/ICY support).
-- SE lacks camera, IMU, proximity sensor — never depend on them.
-- Playback scope v1: `format == "mp3"` only (22/24 channels). HLS (`thelot`,
-  `lyl`) is out — ESP32-audioI2S's m3u8 handling doesn't cover them; skip, don't
-  attempt.
+- **AW88298 (internal amp, I2C 0x36)**: 16-bit registers written **MSB first**
+  (M5Unified bswap16s before its pointer write — easy to misread). The AW9523
+  (0x58) reg 0x02 bit2 rail **power-cycles the whole amp chip**.
+- **ESP32-audioI2S outputs 32-bit I2S slots** → the amp's I2SCTRL (reg 0x06)
+  needs I2SBCK=64*fs — base `0x1CE0`, *not* M5Unified's 16-bit-slot `0x14C0`.
+  Wrong ratio = PLL never locks (SYSST=0x0000) = silence with perfect-looking
+  registers.
+- **The amp cannot lock the ESP32's fractional 44.1 kHz BCLK** and faults
+  (SYSST.SWS bit8 drops) on any I2S clock reconfig. Both solved by pinning the
+  output clock: `audio.setOutput48KHz(true)` (lib resamples). Keep the 5 s
+  read-only SWS health check (power-cycle recovery) — and never rewrite a live
+  amp register that hasn't changed (audible glitch).
+- **I2S pinouts** (all share GPIO13 data; exactly one profile active):
+  internal {BCLK 34, LRCK 33, DOUT 13}, RCA M125 {7, 0, 13}, Module Audio
+  M144 {BCLK 0, LRCK 6, DOUT 13, **MCLK 7 mandatory**, pin switch on B}.
+  `Audio::setPinout` MCLK default is -1/unused — passing 0 routes MCLK onto
+  GPIO0.
+- **Probe 0x33 only** for Module Audio (its STM32 helper). Never probe 0x10 —
+  the internal BMM150 magnetometer answers there on every CoreS3.
+- **Realtime-paced streams** (Icecast/Airtime/AzuraCast) leave ~3 KB of
+  buffer = every wifi hiccup is an audible gap. The lib has no prebuffer API:
+  `player.cpp` suspends the lib's decode task ("PeriodicTask") across
+  `connecttohost` while `audio.loop()` fills a 48 KB cushion (3 s cap). NTS
+  (CDN) doesn't need it but is harmless.
+- ESP32-audioI2S 3.4.6 model: lib spawns the decode task at `setPinout`; the
+  sketch must still pump `audio.loop()` every ~1–5 ms (all networking lives
+  there — `player.cpp`'s task does this); events arrive via the single
+  `Audio::audio_info_callback` **in the pumping task's context**;
+  `connecttohost` blocks up to ~3 s (never call from the UI task); volume
+  range 0..21; no legacy `audio_info()` weak callbacks anymore.
+- A TLS handshake blocks ~0.5–1 s and needs ~50 KB heap: network calls run on
+  worker tasks (`now_playing.cpp`) or at boot, never on the input loop; the
+  one shared verified client is mutex-guarded (`net.cpp`); no keep-alive (the
+  server drops idle connections and a parked session pins ~50 KB).
+- USB-CDC: `Serial.begin()` is required for `Serial.print*` (log_* bypasses
+  it). `pio device monitor` needs a TTY — use `scripts/serial_capture.py`
+  from scripts/agents (it also does the proper DTR-low reset dance).
+- LittleFS partition is labeled `littlefs`: mount with
+  `LittleFS.begin(true, "/littlefs", 10, "littlefs")` (esp_littlefs defaults
+  to the label "spiffs" and fails).
 
 ## Flash & filesystem
 
-- `partitions.csv`: dual 4 MB OTA slots + ~7.9 MB LittleFS. **Offsets/sizes are
-  frozen once any device has OTA'd** — the running firmware writes into the old
-  table's slot. USB reflash is the only recovery from a table change.
-- On-device layout: `/content/m5cores3/` mirror of the pack;
-  `/content/.staging/` for in-flight downloads; local `manifest.json` is the
-  commit marker (written last, absence ⇒ full sync).
-- NVS holds device state (Wi-Fi credentials, last station, volume) — keep keys
-  documented in `include/config.h` as they appear.
-- No bootloader rollback (stock arduino-esp32): sha256-verify the OTA image
-  *while streaming* into the inactive slot and only `Update.end()` on match.
+- `partitions.csv`: dual 4 MB OTA slots + ~7.9 MB LittleFS. **Offsets/sizes
+  frozen once any device has OTA'd.** USB reflash is the only recovery from a
+  table change. Erase just the FS:
+  `esptool erase-region 0x810000 0x7E0000` (run it with
+  `~/.platformio/penv/bin/python3 ~/.platformio/packages/tool-esptoolpy/esptool.py`).
+- On-device layout: `/content/m5cores3/` pack mirror; `/content/.staging/`
+  in-flight downloads; local `manifest.json` is the commit marker (absence ⇒
+  full sync). Empty FS is valid — the device syncs itself.
+- NVS namespace `wh`: `ssid`, `pass`, `last_st`, `vol` (0–21), `aout`
+  (0 auto/1 internal/2 rca/3 module), `bright` — documented in config.h.
 
-## Memory discipline
+## Bench workflow (no hands needed)
 
-- Big buffers go to PSRAM (`ps_malloc` / PSRAM-backed containers).
-- Stream-parse JSON with ArduinoJson from LittleFS/HTTP — never slurp into
-  `String`; avoid `String` churn in loops entirely.
-- A TLS handshake needs ~50 KB heap: never run two TLS connections while audio
-  is playing. Sequence: sync/OTA checks happen before playback starts or while
-  stopped; now-playing polls reuse one connection where possible.
-
-## Commands
-
-```sh
-pio run                                  # compile (the CI gate)
-pio run -t upload                        # flash over USB
-python3 ../../tools/build.py --seed-m5   # refresh data/ from content/
-pio run -t uploadfs                      # flash LittleFS seed
-pio device monitor                       # 115200 baud
-```
+- Dev env `m5stack-cores3-dev` points the content host at
+  `http://192.168.8.76:3111` (edit for your LAN): copy `players/web/public`
+  somewhere, `php -S 0.0.0.0:3111 -t <copy>`, flash dev env, drive
+  sync/OTA tests by editing the copy. OTA bench: build with a bumped
+  `WH_FW_BUILD` (explicit full flag list in the dev env), drop the `.bin` +
+  manifest under `<copy>/content/firmware/m5cores3/`.
+- Everything observable ships to serial; assert against
+  `scripts/serial_capture.py` output. Sound/touch/visuals need a human.
 
 ## Release rule
 
-Every binary published for OTA bumps `WH_FW_BUILD` (monotonic integer) and
-`WH_FW_VERSION` (human semver) in `platformio.ini`, and follows the release
-runbook in CONTENT-API.md: upload the **versioned** `.bin` first, rewrite the
-firmware manifest last. Never publish a `latest.bin`.
+Every OTA-published binary bumps `WH_FW_BUILD` (monotonic integer) and
+`WH_FW_VERSION` (human semver) in `platformio.ini` **production env**, and
+follows the runbook in CONTENT-API.md: upload the **versioned** `.bin` first,
+rewrite the firmware manifest last. Never publish a `latest.bin`, never
+publish from the dev env.

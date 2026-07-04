@@ -21,6 +21,15 @@ void render(const PlayerSnapshot& snap, const NowPlaying& np);
 void stationToast(int currentIndex);  // list of neighbors, ~2 s
 void volumeOverlay(uint8_t vol);
 
+// Modal settings overlay (BtnB hold). While open, main routes taps to
+// settingsTouch() and applies the returned action.
+enum class SettingsAction { None, Close, CloseAndReboot };
+bool settingsOpen();
+void settingsShow(AudioOutSetting audioOut, uint8_t brightness);
+SettingsAction settingsTouch(int x, int y);
+AudioOutSetting settingsAudioOut();   // pending value after Close*
+uint8_t settingsBrightness();
+
 // Timers: marquee scroll + overlay expiry. Call every loop.
 void tick();
 }  // namespace ui
