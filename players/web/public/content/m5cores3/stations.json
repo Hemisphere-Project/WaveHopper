@@ -15,21 +15,6 @@
     "icon": "icons/dublab.png"
   },
   {
-    "id": "thelot",
-    "station": "The Lot Radio",
-    "channel": "main",
-    "city": "Brooklyn",
-    "url": "https://livepeercdn.studio/hls/85c28sa2o8wppm58/index.m3u8",
-    "format": "hls",
-    "color": "#2aeb62",
-    "homepage": "https://www.thelotradio.com/",
-    "nowPlaying": {
-      "type": "thelot-html",
-      "endpoint": "https://www.thelotradio.com/"
-    },
-    "icon": "icons/thelot-alt.png"
-  },
-  {
     "id": "kiosk",
     "station": "Kiosk Radio",
     "channel": "",
@@ -49,7 +34,7 @@
     "station": "LYL Radio",
     "channel": "main",
     "city": "Lyon",
-    "url": "https://radio.lyl.live/hls/live.m3u8",
+    "url": "https://radio.lyl.live/hls/aac_hifi.m3u8",
     "format": "hls",
     "color": "#ebd32a",
     "homepage": "https://lyl.live/",

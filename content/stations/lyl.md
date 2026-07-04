@@ -49,3 +49,10 @@ access-control-allow-origin: *
 ## Open questions
 
 - LYL also has a Paris studio per their meta description; unclear whether it broadcasts to a separate channel or shares the main feed. The GraphQL `onair` query exposes only one HLS field, so it's a single feed.
+
+## M5 device playback (2026-07-05)
+
+The lib (ESP32-audioI2S 3.4.6) plays LYL's HLS natively: master → AAC-LC
+variants, standard nginx MPEG-TS segments. Verified 50+ s stable on the
+CoreS3 (buffer flat, arrival = consumption). `m5Url` points at `aac_hifi`
+(211 kbps) — the lib otherwise picks the first-listed variant (lofi).

@@ -71,6 +71,9 @@ void onAudioEvent(Audio::msg_t m) {  // player-task context (audio.loop drain)
     case Audio::evt_info:
       log_i("[audio] %s", m.msg ? m.msg : "");
       break;
+    case Audio::evt_log:
+      log_w("[audio:log] %s", m.msg ? m.msg : "");
+      break;
     default:
       break;
   }

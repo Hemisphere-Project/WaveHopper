@@ -99,8 +99,8 @@ bool load() {
 
   Prefs prefs = loadPrefs();
   for (JsonObject o : doc.as<JsonArray>()) {
-    const char* format = o["format"] | "";
-    if (strcmp(format, "hls") == 0) continue;  // unplayable on this hardware (v1)
+    // No format filtering here: the m5 pack is device-specific and the build
+    // only includes playable streams (HLS only via a verified m5Url).
     String id = (const char*)(o["id"] | "");
     if (!visibleFor(o["defaultDisabled"] | false, prefs, id)) continue;
 
@@ -168,7 +168,6 @@ std::vector<StationMeta> allMeta() {
 
   Prefs prefs = loadPrefs();
   for (JsonObject o : doc.as<JsonArray>()) {
-    if (strcmp(o["format"] | "", "hls") == 0) continue;
     StationMeta m;
     m.id = (const char*)(o["id"] | "");
     String ch = (const char*)(o["channel"] | "");

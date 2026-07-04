@@ -60,3 +60,10 @@ offline. The URL itself is correct (HTTP 200, audio/HLS content-type, CORS `*`,
   show is on air.
 - Are the archived episodes worth pulling into a separate "shows" view? Out of
   scope for this skill.
+
+## M5 device playback attempt (2026-07-05)
+
+`?video=false` gives a pure AAC master (mp4a.40.2, ~194 kbps) and the device
+follows redirects + tokenized variant fine, but ESP32-audioI2S's TS demuxer
+fails on Livepeer's segment muxing: "PES not found" (Audio.cpp ts_parsePacket).
+Web-only until fixed upstream — file with schreibfaul1 using this repro.

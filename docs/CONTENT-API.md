@@ -48,6 +48,7 @@ Produced from `content/stations/<id>.json` sources. Fields:
 | `color` | string (hex) | all — accent; M5 uses it as icon placeholder when `icon` absent |
 | `homepage` | string, optional | web — link out |
 | `icon` | string, optional | web: docroot-absolute (`/img/stations/…`) or remote URL. **M5 pack: pack-relative (`icons/…`) or absent — never a remote URL** (the firmware only talks TLS to waverz.net) |
+| `m5Url` | string, optional (source only) | device-specific stream override. For HLS stations it marks the stream device-playable and points at a verified audio-only TS variant (the firmware's demuxer needs standard TS-AAC; e.g. LYL works, Livepeer's muxing doesn't — "PES not found"). The build emits it as the pack's `url`; HLS stations without it stay web-only |
 | `nowPlaying` | object, optional | `{ "type": "nts" \| "airtime" \| "radiocult" \| "lyl-graphql" \| "thelot-html" \| "azuracast" \| "hls-id3" \| "none", … }`; `type` decides whether polling `/api/now-playing.php` is useful (`hls-id3` and `none` are client-side/no-op) |
 | `defaultDisabled` | bool, optional | all — hidden from the default list, opt-in via config |
 

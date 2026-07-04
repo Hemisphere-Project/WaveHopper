@@ -10,5 +10,6 @@
   "icon": "/img/stations/lyl-alt.png",
   "nowPlaying": {
     "type": "lyl-graphql"
-  }
+  },
+  "m5Url": "https://radio.lyl.live/hls/aac_hifi.m3u8"
 }

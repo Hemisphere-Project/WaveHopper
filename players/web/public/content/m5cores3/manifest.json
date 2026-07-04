@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "contentVersion": "56072dc8dba5b51ac58dab24b46b78094a2f66ea78cbfbad6d512df33f8b28b9",
-  "generated": "2026-07-04T20:46:04Z",
-  "totalSize": 34106,
+  "contentVersion": "4fbb99163c34934cab69bd23efda1298633c812c5673a7bf093bdad9d8421dbd",
+  "generated": "2026-07-04T22:00:49Z",
+  "totalSize": 30072,
   "files": [
     {
       "path": "icons/dublab.png",
@@ -35,12 +35,6 @@
       "srcSha256": "092cefb601d272d4d036e77c9d749edf68b304447e095f72197382a70479084c"
     },
     {
-      "path": "icons/thelot-alt.png",
-      "sha256": "5fc698dc044cec5fb57b5c2b2f2f4927aa25cb687bb28ec39234427f47c3b681",
-      "size": 3624,
-      "srcSha256": "5982bdf0abcb46838c60bcb8e9a72bbe8888ca29d013e948ff03f6d0239b4173"
-    },
-    {
       "path": "icons/wavezero.png",
       "sha256": "c083ca37f5ea15b1d41cd0254ef73c8308b420c55110db50439647f527d95b6b",
       "size": 2022,
@@ -48,8 +42,8 @@
     },
     {
       "path": "stations.json",
-      "sha256": "40954545c9d8c7090944d485b188128012ab68427c002bbc5579cfba5790661d",
-      "size": 7965
+      "sha256": "42e2a6d457cc6b7911e85339ae108217ff9bf3ddfbd6f95f76bb82d7d037ffab",
+      "size": 7555
     }
   ]
 }

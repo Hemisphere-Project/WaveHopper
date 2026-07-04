@@ -122,6 +122,13 @@ def transform_stations_for_m5(stations: list[dict]) -> tuple[list[dict], list[Pa
     icon_sources: list[Path] = []
     for station in stations:
         entry = dict(station)
+        # HLS is device-playable only when the station carries a verified m5Url
+        # (audio-only TS variant the firmware's demuxer handles — e.g. LYL).
+        m5_url = entry.pop('m5Url', None)
+        if m5_url:
+            entry['url'] = m5_url
+        elif entry.get('format') == 'hls':
+            continue  # web-only station
         icon = entry.pop('icon', None)
         if isinstance(icon, str) and icon.startswith(WEB_ICON_PREFIX):
             src = ICONS_SRC_DIR / Path(icon).name
