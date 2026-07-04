@@ -1,0 +1,34 @@
+# CI guard for the deployable web tree. Deploys themselves happen via the
+# GitHub webhook → https://waverz.net/api/deploy.php (git pull on the server;
+# see players/web/public/api/deploy.php) — this workflow only verifies that
+# the committed artifacts under players/web/public/ match the content/
+# sources, so a bad build can't silently reach production.
+
+name: verify-web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'players/web/public/**'
+      - 'content/**'
+      - 'tools/**'
+      - '.github/workflows/verify-web.yml'
+  pull_request:
+    paths:
+      - 'players/web/public/**'
+      - 'content/**'
+      - 'tools/**'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Artifacts in sync with content sources
+        run: |
+          python3 tools/build.py
+          if ! git diff --exit-code --stat; then
+            echo "::error::players/web/public artifacts are out of sync with content/ — run tools/build.py locally and commit"
+            exit 1
+          fi

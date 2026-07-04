@@ -60,7 +60,12 @@ uint32_t g_marqueeNextStep = 0;
 
 String effectiveTitle() {
   if (!g_np.title.isEmpty()) return g_np.title;
-  if (g_snap.streamTitle[0]) return String(g_snap.streamTitle);
+  // ICY fallback — some stations send a bare " - " separator as the title.
+  String icy(g_snap.streamTitle);
+  String stripped(icy);
+  stripped.replace("-", "");
+  stripped.trim();
+  if (!stripped.isEmpty()) return icy;
   return "~ on air ~";
 }
 
@@ -143,7 +148,10 @@ void buildCard() {
   }
   g_card.setFont(&F_SMALL);
   g_card.setTextColor(s.color565, COL_BG);
-  String sub = s.channel.isEmpty() ? s.city : "ch " + s.channel + " . " + s.city;
+  // Channel shown only when it distinguishes ("main" and empty don't).
+  String sub = (s.channel.isEmpty() || s.channel == "main")
+                   ? s.city
+                   : s.channel + " . " + s.city;
   g_card.drawString(sub.c_str(), TX, 96);
 
   // Status / subtitle zone under the marquee strip.
@@ -298,6 +306,8 @@ void render(const PlayerSnapshot& snap, const NowPlaying& np) {
   g_snap = snap;
   g_np = np;
   g_haveCard = true;
+  log_i("card: state=%s title='%s' subtitle='%s'", player::stateName(snap.state),
+        effectiveTitle().c_str(), np.subtitle.c_str());
   setMarquee(effectiveTitle());
   buildCard();
   if (!g_settingsOpen && millis() >= g_overlayUntil) pushCard();

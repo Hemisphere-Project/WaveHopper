@@ -58,8 +58,14 @@
 // realtime, so without a head start every wifi hiccup is an audible gap. We
 // hold the decoder suspended after connect until this many bytes buffered (or
 // the wait cap), trading tune latency for a persistent jitter cushion.
-#define WH_PREBUFFER_BYTES    49152  // ~2 s at 192 kbps
-#define WH_PREBUFFER_WAIT_MS  3000   // cap on the buffering hold
+#define WH_PREBUFFER_BYTES    98304  // ~4 s at 192 kbps
+#define WH_PREBUFFER_WAIT_MS  4500   // cap on the buffering hold
+// Depleted-cushion recovery: when the buffer stays under LOW for LOW_MS while
+// playing, the connection is sick (or jitter ate the cushion for good) — one
+// deliberate reconnect rebuilds it via the server's burst-on-connect, instead
+// of many micro-gaps.
+#define WH_REBUFFER_LOW       8192
+#define WH_REBUFFER_LOW_MS    5000
 #define WH_STALL_MS           20000  // PLAYING with empty buffer this long = dead
 #define WH_ALLFAIL_SWEEP_MS   60000  // retry period after every station failed
 #define WH_NP_POLL_MS         30000  // now-playing poll while playing

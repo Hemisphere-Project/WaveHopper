@@ -141,20 +141,23 @@ For the M5 firmware: see [players/m5cores3/README.md](players/m5cores3/README.md
 
 ## Deploy (web, authoritative)
 
-Production runs on Infomaniak shared hosting (Apache + PHP).
+Production runs on Infomaniak shared hosting (Apache + PHP). The server keeps
+a **git clone** of this repo (`~/web/waverz.net/WaveHopper`) with the site
+root pointing at its `players/web/public/` (via a `public` symlink kept for
+the hosting config).
 
-**Automatic**: pushing to `main` deploys via GitHub Actions
-([.github/workflows/deploy.yml](.github/workflows/deploy.yml)) whenever
-`players/web/public/**` changed — it verifies the committed artifacts match
-`content/` (re-runs the build, fails on diff) then rsyncs the docroot
-(`--delete`, sparing the server-writable `api/cache/`). One-time setup: enable
-SSH on the hosting and set the `DEPLOY_HOST/USER/KEY/PATH` repo secrets — see
-the workflow header.
+**Automatic**: a GitHub push webhook hits
+[`/api/deploy.php`](players/web/public/api/deploy.php), which validates the
+HMAC and runs `git pull --ff-only` on the server clone. The shared secret
+lives only on the host (`<repo-root>/.deploy-secret`, gitignored) — leaking
+it can at worst trigger a pull of this public repo. A separate CI check
+([.github/workflows/verify-web.yml](.github/workflows/verify-web.yml))
+fails the push if committed artifacts don't match `content/` sources.
+(Infomaniak's sshd ignores `command=` key restrictions, which is why a
+CI-held SSH deploy key was rejected: it would have been a full-shell
+credential.)
 
-**Manual** (fallback):
-
-1. `python3 tools/build.py` and commit any artifact changes.
-2. rsync `players/web/public/` to the docroot (keep `api/cache/` writable).
+**Manual** (fallback): `ssh` to the host, `git pull` in the clone.
 
 Cache rules live in `players/web/public/.htaccess` (Apache/LiteSpeed); mirror
 them in nginx where applicable — `/content/**/manifest.json` must never be

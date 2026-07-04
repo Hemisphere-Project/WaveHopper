@@ -261,16 +261,33 @@ void tick() {
         startTune(g_current, 2);  // one retry, then failCurrent skips
         break;
       }
-      if (g_audio.inBufferFilled() == 0) {
-        if (!g_stallSince) {
-          g_stallSince = now;
-        } else if (now - g_stallSince > WH_STALL_MS) {
-          log_e("stall on [%d] (buffer empty %lus)", g_current, WH_STALL_MS / 1000);
+      {
+        uint32_t buffered = g_audio.inBufferFilled();
+        if (buffered == 0) {
+          if (!g_stallSince) {
+            g_stallSince = now;
+          } else if (now - g_stallSince > WH_STALL_MS) {
+            log_e("stall on [%d] (buffer empty %lus)", g_current, WH_STALL_MS / 1000);
+            startTune(g_current, 2);
+            break;
+          }
+        } else {
+          g_stallSince = 0;
+        }
+        // Depleted cushion → one deliberate reconnect (the server's
+        // burst-on-connect + prebuffer hold rebuild it) instead of gap-crackle.
+        static uint32_t lowSince = 0;
+        if (buffered >= WH_REBUFFER_LOW) {
+          lowSince = 0;
+        } else if (!lowSince) {
+          lowSince = now;
+        } else if (now - lowSince > WH_REBUFFER_LOW_MS) {
+          lowSince = 0;
+          log_e("cushion depleted on [%d] (%lu bytes) — rebuffering", g_current,
+                (unsigned long)buffered);
           startTune(g_current, 2);
           break;
         }
-      } else {
-        g_stallSince = 0;
       }
       if (now - g_lastHealth > 5000) {
         g_lastHealth = now;

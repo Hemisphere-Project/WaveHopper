@@ -41,10 +41,12 @@ Committed build artifacts (`players/web/public/stations.json`,
 The build is idempotent; running it with no content changes must produce no
 diff (if it doesn't, that's a bug in `tools/build.py`).
 
-Pushing to `main` auto-deploys the docroot to production (Infomaniak) via
-`.github/workflows/deploy.yml` when `players/web/public/**` changed — CI
-re-runs the build and refuses to deploy artifacts that don't match `content/`.
-Anything you commit under the docroot goes live on push.
+Pushing to `main` auto-deploys production: a GitHub webhook hits
+`/api/deploy.php` on waverz.net, which `git pull`s the server's clone
+(docroot = its `players/web/public/`, reachable as `ssh hmsphr`,
+`~/web/waverz.net/WaveHopper`). Anything you commit under the docroot goes
+live on push — `.github/workflows/verify-web.yml` fails CI when committed
+artifacts don't match `content/`, but it does not block the pull.
 
 ## Station workflow
 
