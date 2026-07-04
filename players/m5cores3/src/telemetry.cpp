@@ -13,7 +13,6 @@ struct Event {
 };
 
 QueueHandle_t g_queue = nullptr;
-TaskHandle_t g_worker = nullptr;
 String g_tid;
 
 String installId() {
@@ -44,25 +43,19 @@ void post(const Event& e) {
            "{\"v\":1,\"id\":\"%s\",\"p\":\"m5cores3\",\"ev\":\"%s\",\"st\":\"%s\","
            "\"app\":\"%s+%d\"}",
            id.c_str(), e.ev, e.st, WH_FW_VERSION, WH_FW_BUILD);
-  if (!net::whBegin(WH_TELEMETRY_PATH)) return;
-  net::http().addHeader("Content-Type", "application/json");
-  int code = net::http().POST(String(body));
-  net::end();
-  log_d("telemetry %s %s -> %d", e.ev, e.st, code);
-}
-
-void workerTask(void*) {
-  Event e;
-  for (;;) {
-    if (xQueueReceive(g_queue, &e, portMAX_DELAY) == pdTRUE) post(e);
+  int code = -1;
+  for (int attempt = 0; attempt < 3 && code < 0; ++attempt) {
+    if (attempt) vTaskDelay(pdMS_TO_TICKS(4000));  // ride out TLS-heap congestion
+    if (!net::whBegin(WH_TELEMETRY_PATH)) continue;
+    net::http().addHeader("Content-Type", "application/json");
+    code = net::http().POST(String(body));
+    net::end();
   }
+  log_i("telemetry %s %s -> %d", e.ev, e.st, code);
 }
 
 void enqueue(const char* ev, const String& st) {
-  if (!g_queue) {
-    g_queue = xQueueCreate(6, sizeof(Event));
-    xTaskCreatePinnedToCore(workerTask, "wh_telemetry", 10240, nullptr, 1, &g_worker, 0);
-  }
+  if (!g_queue) g_queue = xQueueCreate(6, sizeof(Event));
   Event e{};
   strlcpy(e.ev, ev, sizeof(e.ev));
   strlcpy(e.st, st.c_str(), sizeof(e.st));
@@ -72,6 +65,12 @@ void enqueue(const char* ev, const String& st) {
 }  // namespace
 
 namespace telemetry {
+
+void drainOne() {
+  if (!g_queue) return;
+  Event e;
+  if (xQueueReceive(g_queue, &e, 0) == pdTRUE) post(e);
+}
 
 void tick(bool playing, const String& stationId) {
   static bool wasPlaying = false;

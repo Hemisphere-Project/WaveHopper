@@ -5,6 +5,7 @@
 #include "catalog.h"
 #include "config.h"
 #include "net.h"
+#include "telemetry.h"
 
 namespace {
 
@@ -66,10 +67,15 @@ void poll(const Station& s) {
 }
 
 void workerTask(void*) {
+  // The one TLS-capable worker: now-playing polls (notified) + telemetry
+  // queue (drained between polls). A second worker's stack starved internal
+  // RAM below what mbedtls handshakes need during playback.
   for (;;) {
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    int idx = g_requestedStation;
-    if (idx >= 0 && idx < (int)catalog::count()) poll(catalog::at(idx));
+    if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(500))) {
+      int idx = g_requestedStation;
+      if (idx >= 0 && idx < (int)catalog::count()) poll(catalog::at(idx));
+    }
+    telemetry::drainOne();
   }
 }
 
