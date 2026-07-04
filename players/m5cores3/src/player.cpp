@@ -185,6 +185,12 @@ void begin(AudioProfile profile, uint8_t volume, int firstStationIndex) {
   Audio::audio_info_callback = onAudioEvent;
   AudioPins p = audio_out::pins(profile);
   g_audio.setPinout(p.bclk, p.lrck, p.dout, p.mclk);
+  // Core split (the lib requires decode and audio.loop() on OPPOSITE cores):
+  //   core 0 = playerTask (network/TLS pump + wifi stack)
+  //   core 1 = decode task + UI loopTask
+  // With both on core 0, HLS's bursty per-segment TLS fetches starved the
+  // decoder → glitchy segment audio; Icecast's steady trickle didn't show it.
+  g_audio.setAudioTaskCore(1);
   // Constant 48 kHz output clock: the AW88298 can't lock the ESP32's
   // fractional 44.1 kHz BCLK and faults on I2S clock reconfigs (see M0 notes).
   g_audio.setOutput48KHz(true);
