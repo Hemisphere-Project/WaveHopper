@@ -141,12 +141,20 @@ For the M5 firmware: see [players/m5cores3/README.md](players/m5cores3/README.md
 
 ## Deploy (web, authoritative)
 
-Production assumes nginx + PHP-FPM (or any static + PHP host).
+Production runs on Infomaniak shared hosting (Apache + PHP).
+
+**Automatic**: pushing to `main` deploys via GitHub Actions
+([.github/workflows/deploy.yml](.github/workflows/deploy.yml)) whenever
+`players/web/public/**` changed — it verifies the committed artifacts match
+`content/` (re-runs the build, fails on diff) then rsyncs the docroot
+(`--delete`, sparing the server-writable `api/cache/`). One-time setup: enable
+SSH on the hosting and set the `DEPLOY_HOST/USER/KEY/PATH` repo secrets — see
+the workflow header.
+
+**Manual** (fallback):
 
 1. `python3 tools/build.py` and commit any artifact changes.
-2. rsync `players/web/public/` to the docroot.
-3. PHP-FPM handles `api/*.php`; `api/cache/` writable by the PHP user.
-4. HTTPS terminated at the server (required for PWA install and device TLS).
+2. rsync `players/web/public/` to the docroot (keep `api/cache/` writable).
 
 Cache rules live in `players/web/public/.htaccess` (Apache/LiteSpeed); mirror
 them in nginx where applicable — `/content/**/manifest.json` must never be

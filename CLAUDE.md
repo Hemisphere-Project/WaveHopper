@@ -41,6 +41,11 @@ Committed build artifacts (`players/web/public/stations.json`,
 The build is idempotent; running it with no content changes must produce no
 diff (if it doesn't, that's a bug in `tools/build.py`).
 
+Pushing to `main` auto-deploys the docroot to production (Infomaniak) via
+`.github/workflows/deploy.yml` when `players/web/public/**` changed — CI
+re-runs the build and refuses to deploy artifacts that don't match `content/`.
+Anything you commit under the docroot goes live on push.
+
 ## Station workflow
 
 One station at a time, via the skills: `/import-station <id>` (stream URL,
