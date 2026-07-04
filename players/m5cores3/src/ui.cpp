@@ -556,11 +556,29 @@ void bufferGauge(uint32_t buffered, uint32_t target) {
   if (g_settingsOpen || !g_haveCard || millis() < g_overlayUntil) return;
   if (!target) return;
   int w = std::min<uint32_t>(W, (uint64_t)buffered * W / target);
-  uint16_t col = (buffered * 2 >= target)   ? rgb565(0x2a, 0xeb, 0x62)
-                 : (buffered * 5 >= target) ? rgb565(0xeb, 0xae, 0x2a)
-                                            : rgb565(0xeb, 0x2a, 0x2a);
+  // Muted tones — informative without competing with the station accent.
+  uint16_t col = (buffered * 2 >= target)   ? rgb565(0x14, 0x66, 0x2e)
+                 : (buffered * 5 >= target) ? rgb565(0x66, 0x4d, 0x12)
+                                            : rgb565(0x70, 0x16, 0x16);
   M5.Display.fillRect(0, H - 2, w, 2, col);  // bottom edge — clear of the accent bar
   M5.Display.fillRect(w, H - 2, W - w, 2, COL_BG);
+}
+
+void wifiMeter(int rssi) {
+  if (g_settingsOpen || !g_haveCard || millis() < g_overlayUntil) return;
+  int bars = rssi >= -55 ? 4 : rssi >= -65 ? 3 : rssi >= -72 ? 2 : rssi >= -80 ? 1 : 0;
+  uint16_t col = bars >= 3   ? rgb565(0x14, 0x66, 0x2e)
+                 : bars == 2 ? rgb565(0x66, 0x4d, 0x12)
+                             : rgb565(0x70, 0x16, 0x16);
+  int x0 = W - 30, y0 = 10;
+  M5.Display.startWrite();
+  M5.Display.fillRect(x0 - 2, y0 - 1, 26, 14, COL_BG);
+  for (int b = 0; b < 4; ++b) {
+    int h = 3 + b * 3;
+    uint16_t c = b < bars ? col : COL_LINE;
+    M5.Display.fillRect(x0 + b * 6, y0 + 12 - h, 4, h, c);
+  }
+  M5.Display.endWrite();
 }
 
 void tick() {

@@ -8,6 +8,7 @@
 
 #include <M5Unified.h>
 #include <LittleFS.h>
+#include <WiFi.h>
 
 #include "config.h"
 #include "wh_nvs.h"
@@ -160,19 +161,19 @@ void loop() {
     browseCommitAt = millis() + 600;
     ui::stationToast(browseIdx);
   }
-  // Vertical drag scrolls the selection continuously (~30 px per station);
+  // Vertical drag scrolls the selection continuously (~48 px per station);
   // drag down moves up the list, like scrolling content.
   static int dragBaseIdx = -1;
   static bool dragging = false;
   if (t.isPressed() && t.y < 240 && n) {
     int dy = t.distanceY();
-    if (!dragging && abs(dy) > 24 && abs(dy) > abs(t.distanceX())) {
+    if (!dragging && abs(dy) > 32 && abs(dy) > abs(t.distanceX()) * 2) {
       dragging = true;
       dragBaseIdx = browseIdx >= 0 ? browseIdx
                                    : (snap.stationIndex < 0 ? 0 : snap.stationIndex);
     }
     if (dragging) {
-      int idx = ((dragBaseIdx - dy / 30) % n + n) % n;
+      int idx = ((dragBaseIdx - dy / 48) % n + n) % n;
       if (idx != browseIdx) {
         browseIdx = idx;
         ui::stationToast(browseIdx);
@@ -235,6 +236,7 @@ void loop() {
   if (snap.state == PlayerState::Playing && browseIdx < 0 && millis() > gaugeAt) {
     gaugeAt = millis() + 1000;
     ui::bufferGauge(snap.buffered, snap.bufferTarget);
+    ui::wifiMeter(WiFi.RSSI());
   }
 
   ui::tick();

@@ -288,24 +288,32 @@ void tick() {
         }
         // Depleted cushion → one deliberate reconnect (burst-on-connect or a
         // fresh CDN edge rebuilds it) instead of sawtooth gap-crackle. The
-        // trigger is cumulative low time in a rolling window: brief dips that
-        // self-recover don't fire; a chronic sawtooth does.
-        static uint32_t lowAccumMs = 0, windowStart = 0, lastLowTick = 0;
+        // low watermark scales with the learned target so a post-RF-outage
+        // shallow cushion recovers promptly (a paced server would otherwise
+        // never refill it). Cumulative-in-window so brief dips don't fire;
+        // min spacing so a dead link doesn't thrash reconnects.
+        static uint32_t lowAccumMs = 0, windowStart = 0, lastLowTick = 0,
+                        lastRebuffer = 0;
+        uint32_t target = g_targets.empty() ? WH_PREBUFFER_BYTES : g_targets[g_current];
+        uint32_t lowWater = std::max<uint32_t>(WH_REBUFFER_LOW, target / 4);
         if (!windowStart || now - windowStart > WH_REBUFFER_WINDOW_MS) {
           windowStart = now;
           lowAccumMs = 0;
         }
-        if (buffered < WH_REBUFFER_LOW && lastLowTick) lowAccumMs += now - lastLowTick;
+        if (buffered < lowWater && lastLowTick) lowAccumMs += now - lastLowTick;
         lastLowTick = now;
-        if (lowAccumMs > WH_REBUFFER_LOW_MS) {
+        if (lowAccumMs > WH_REBUFFER_LOW_MS && now - lastRebuffer > 15000) {
           lowAccumMs = 0;
           windowStart = 0;
-          if (!g_targets.empty()) {  // this station earns a deeper cushion
+          lastRebuffer = now;
+          if (!g_targets.empty() && buffered < WH_REBUFFER_LOW) {
+            // Deep depletion (not just shallow-after-recovery): the station
+            // earns a bigger cushion.
             g_targets[g_current] =
                 std::min<uint32_t>(kTargetCap, g_targets[g_current] * 3 / 2);
           }
-          log_e("chronic low buffer on [%d] (%lu now) — rebuffering, target now %lu",
-                g_current, (unsigned long)buffered,
+          log_e("cushion low on [%d] (%lu, water %lu) — rebuffering, target %lu",
+                g_current, (unsigned long)buffered, (unsigned long)lowWater,
                 (unsigned long)(g_targets.empty() ? 0 : g_targets[g_current]));
           startTune(g_current, 1);
           break;
