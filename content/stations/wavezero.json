@@ -7,7 +7,7 @@
   "format": "mp3",
   "color": "#e63946",
   "homepage": "https://wavezero.world",
-  "icon": "https://stream.ondezero.net/static/uploads/browser_icon/180.1714648247.png",
+  "icon": "/img/stations/wavezero.png",
   "nowPlaying": {
     "type": "azuracast",
     "endpoint": "https://stream.ondezero.net/api/nowplaying/oz"

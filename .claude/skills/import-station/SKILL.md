@@ -60,11 +60,11 @@ Always set `last_checked:` to today's ISO date when you touch a station.
    4. **Favicon** — `<link rel="icon" href="/favicon.png">` or `/favicon.ico` at the homepage root.
    Resolve relative URLs against the homepage origin. Verify with `curl -I -L <icon-url>` that it returns 200 and a `Content-Type` of `image/png`/`image/jpeg`/`image/webp`/`image/x-icon`/`image/vnd.microsoft.icon`.
 
-   **When to use the URL directly vs. bundle locally.** Chrome's MediaSession art picker is picky:
-   - Use the remote URL directly **only** if the source is a square PNG/JPEG/WebP at ≥128×128. Most apple-touch-icons (180×180 PNG) qualify.
-   - **Bundle locally** if the source is `.ico`, `<128px`, or non-square (og:image hero). Chrome won't decode `.ico` for MediaSession and downscales tiny PNGs to nothing. Process the source with PIL: pick the largest frame from `.ico`, center-crop non-square images, resize to 192×192 with `Image.LANCZOS`, save as `content/icons/<id>.png`, and set `"icon": "/img/stations/<id>.png"` (the build copies `content/icons/` into the web docroot at that path, and emits a 64×64 version into the m5 device pack). Add the new `/img/stations/<id>.png` path to `SWR_ASSETS` in `players/web/public/sw.js` so it caches with the rest of the app shell.
+   **Always bundle locally.** Station JSONs must never carry remote icon URLs: device packs (m5) only reference same-origin files, and Chrome's MediaSession art picker chokes on `.ico`, tiny, or non-square sources anyway. Process the downloaded source with PIL: pick the largest frame from `.ico`, center-crop non-square images, resize to 192×192 with `Image.LANCZOS`, save as `content/icons/<name>.png`, and set `"icon": "/img/stations/<name>.png"`. Use **one shared file per station brand** — e.g. `nts.png` referenced by all NTS channels — not per-channel duplicates. Then:
+   - Add the new `/img/stations/<name>.png` path to `SWR_ASSETS` in `players/web/public/sw.js`, and bump `APP_VERSION` in both `sw.js` and `app.js` (editing the sw asset list is a shell change — see `players/web/CLAUDE.md`).
+   - `python3 tools/build.py` copies the icon into the web docroot and emits a 64×64 version into the m5 pack.
 
-   If nothing usable exists at all, omit `icon` — the app falls back to the WaveHopper logo. Do not grab logos from third-party CDNs.
+   If nothing usable exists at all, omit `icon` — the app falls back to the WaveHopper logo and the m5 renders a color placeholder. Do not grab logos from third-party CDNs.
 9. **Write `content/stations/<id>.json`** (only if verified), one file per channel. Copy the homepage from the MD frontmatter's `site:` field into `homepage`. Schema:
    ```json
    {
@@ -76,7 +76,7 @@ Always set `last_checked:` to today's ISO date when you touch a station.
      "url": "https://stream.example.com/...",
      "format": "aac",
      "color": "#ff0000",
-     "icon": "https://www.nts.live/apple-touch-icon.png"
+     "icon": "/img/stations/nts.png"
    }
    ```
    Then add the new id to `content/_order.json` at the position where it should appear in the UI list (preserve existing order — usually append, or group with sibling channels). After writing, set the MD status to `added` and run `python3 tools/build.py` from the repo root to regenerate the committed artifacts (`players/web/public/stations.json`, icon copies, and the m5 device pack — see `docs/CONTENT-API.md`).

@@ -11,7 +11,8 @@
     "nowPlaying": {
       "type": "airtime",
       "endpoint": "https://dublab.airtime.pro/api/live-info-v2"
-    }
+    },
+    "icon": "icons/dublab.png"
   },
   {
     "id": "thelot",
@@ -69,7 +70,8 @@
     "nowPlaying": {
       "type": "radiocult",
       "slug": "noods-radio"
-    }
+    },
+    "icon": "icons/noods.png"
   },
   {
     "id": "wavezero",
@@ -83,7 +85,8 @@
     "nowPlaying": {
       "type": "azuracast",
       "endpoint": "https://stream.ondezero.net/api/nowplaying/oz"
-    }
+    },
+    "icon": "icons/wavezero.png"
   },
   {
     "id": "nts-1",
@@ -96,7 +99,8 @@
     "homepage": "https://www.nts.live/",
     "nowPlaying": {
       "type": "nts"
-    }
+    },
+    "icon": "icons/nts.png"
   },
   {
     "id": "nts-2",
@@ -109,7 +113,8 @@
     "homepage": "https://www.nts.live/",
     "nowPlaying": {
       "type": "nts"
-    }
+    },
+    "icon": "icons/nts.png"
   },
   {
     "id": "nts-poolside",
@@ -120,7 +125,8 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "icon": "icons/nts.png"
   },
   {
     "id": "nts-slow-focus",
@@ -131,7 +137,8 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "icon": "icons/nts.png"
   },
   {
     "id": "nts-low-key",
@@ -142,7 +149,8 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "icon": "icons/nts.png"
   },
   {
     "id": "nts-memory-lane",
@@ -153,7 +161,8 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "icon": "icons/nts.png"
   },
   {
     "id": "nts-4-to-the-floor",
@@ -164,7 +173,8 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "icon": "icons/nts.png"
   },
   {
     "id": "nts-island-time",
@@ -175,7 +185,8 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "icon": "icons/nts.png"
   },
   {
     "id": "nts-the-tube",
@@ -186,7 +197,8 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "icon": "icons/nts.png"
   },
   {
     "id": "nts-sheet-music",
@@ -197,7 +209,8 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "icon": "icons/nts.png"
   },
   {
     "id": "nts-feelings",
@@ -208,7 +221,8 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "icon": "icons/nts.png"
   },
   {
     "id": "nts-expansions",
@@ -219,7 +233,8 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "icon": "icons/nts.png"
   },
   {
     "id": "nts-rap-house",
@@ -230,7 +245,8 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "icon": "icons/nts.png"
   },
   {
     "id": "nts-labyrinth",
@@ -241,7 +257,8 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "icon": "icons/nts.png"
   },
   {
     "id": "nts-sweat",
@@ -252,7 +269,8 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "icon": "icons/nts.png"
   },
   {
     "id": "nts-otaku",
@@ -263,7 +281,8 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "icon": "icons/nts.png"
   },
   {
     "id": "nts-the-pit",
@@ -274,7 +293,8 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "icon": "icons/nts.png"
   },
   {
     "id": "nts-field-recordings",
@@ -285,6 +305,7 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "icon": "icons/nts.png"
   }
 ]

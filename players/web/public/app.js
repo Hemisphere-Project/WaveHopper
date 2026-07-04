@@ -1,7 +1,7 @@
 // Waverz·net — frontend entry.
 // Steps 1-4: shell, MP3+HLS playback with auto-skip, config mode + localStorage.
 
-const APP_VERSION = '20260704a';
+const APP_VERSION = '20260704b';
 
 const $ = (sel) => document.querySelector(sel);
 

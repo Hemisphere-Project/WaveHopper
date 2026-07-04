@@ -7,6 +7,6 @@
   "format": "mp3",
   "color": "#fff205",
   "homepage": "https://www.nts.live/",
-  "icon": "https://www.nts.live/apple-touch-icon.png",
+  "icon": "/img/stations/nts.png",
   "defaultDisabled": true
 }

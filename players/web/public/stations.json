@@ -8,7 +8,7 @@
     "format": "mp3",
     "color": "#e62b1e",
     "homepage": "https://www.dublab.com/",
-    "icon": "https://www.dublab.com/assets/icons/apple-touch-icon-180x180.png",
+    "icon": "/img/stations/dublab.png",
     "nowPlaying": {
       "type": "airtime",
       "endpoint": "https://dublab.airtime.pro/api/live-info-v2"
@@ -67,7 +67,7 @@
     "format": "mp3",
     "color": "#00b3ff",
     "homepage": "https://noodsradio.com/",
-    "icon": "https://noodsradio.com/apple-touch-icon.png",
+    "icon": "/img/stations/noods.png",
     "nowPlaying": {
       "type": "radiocult",
       "slug": "noods-radio"
@@ -82,7 +82,7 @@
     "format": "mp3",
     "color": "#e63946",
     "homepage": "https://wavezero.world",
-    "icon": "https://stream.ondezero.net/static/uploads/browser_icon/180.1714648247.png",
+    "icon": "/img/stations/wavezero.png",
     "nowPlaying": {
       "type": "azuracast",
       "endpoint": "https://stream.ondezero.net/api/nowplaying/oz"
@@ -97,7 +97,7 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "icon": "https://www.nts.live/apple-touch-icon.png",
+    "icon": "/img/stations/nts.png",
     "nowPlaying": {
       "type": "nts"
     }
@@ -111,7 +111,7 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "icon": "https://www.nts.live/apple-touch-icon.png",
+    "icon": "/img/stations/nts.png",
     "nowPlaying": {
       "type": "nts"
     }
@@ -125,7 +125,7 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "icon": "https://www.nts.live/apple-touch-icon.png",
+    "icon": "/img/stations/nts.png",
     "defaultDisabled": true
   },
   {
@@ -137,7 +137,7 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "icon": "https://www.nts.live/apple-touch-icon.png",
+    "icon": "/img/stations/nts.png",
     "defaultDisabled": true
   },
   {
@@ -149,7 +149,7 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "icon": "https://www.nts.live/apple-touch-icon.png",
+    "icon": "/img/stations/nts.png",
     "defaultDisabled": true
   },
   {
@@ -161,7 +161,7 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "icon": "https://www.nts.live/apple-touch-icon.png",
+    "icon": "/img/stations/nts.png",
     "defaultDisabled": true
   },
   {
@@ -173,7 +173,7 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "icon": "https://www.nts.live/apple-touch-icon.png",
+    "icon": "/img/stations/nts.png",
     "defaultDisabled": true
   },
   {
@@ -185,7 +185,7 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "icon": "https://www.nts.live/apple-touch-icon.png",
+    "icon": "/img/stations/nts.png",
     "defaultDisabled": true
   },
   {
@@ -197,7 +197,7 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "icon": "https://www.nts.live/apple-touch-icon.png",
+    "icon": "/img/stations/nts.png",
     "defaultDisabled": true
   },
   {
@@ -209,7 +209,7 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "icon": "https://www.nts.live/apple-touch-icon.png",
+    "icon": "/img/stations/nts.png",
     "defaultDisabled": true
   },
   {
@@ -221,7 +221,7 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "icon": "https://www.nts.live/apple-touch-icon.png",
+    "icon": "/img/stations/nts.png",
     "defaultDisabled": true
   },
   {
@@ -233,7 +233,7 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "icon": "https://www.nts.live/apple-touch-icon.png",
+    "icon": "/img/stations/nts.png",
     "defaultDisabled": true
   },
   {
@@ -245,7 +245,7 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "icon": "https://www.nts.live/apple-touch-icon.png",
+    "icon": "/img/stations/nts.png",
     "defaultDisabled": true
   },
   {
@@ -257,7 +257,7 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "icon": "https://www.nts.live/apple-touch-icon.png",
+    "icon": "/img/stations/nts.png",
     "defaultDisabled": true
   },
   {
@@ -269,7 +269,7 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "icon": "https://www.nts.live/apple-touch-icon.png",
+    "icon": "/img/stations/nts.png",
     "defaultDisabled": true
   },
   {
@@ -281,7 +281,7 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "icon": "https://www.nts.live/apple-touch-icon.png",
+    "icon": "/img/stations/nts.png",
     "defaultDisabled": true
   },
   {
@@ -293,7 +293,7 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "icon": "https://www.nts.live/apple-touch-icon.png",
+    "icon": "/img/stations/nts.png",
     "defaultDisabled": true
   },
   {
@@ -305,7 +305,7 @@
     "format": "mp3",
     "color": "#fff205",
     "homepage": "https://www.nts.live/",
-    "icon": "https://www.nts.live/apple-touch-icon.png",
+    "icon": "/img/stations/nts.png",
     "defaultDisabled": true
   }
 ]

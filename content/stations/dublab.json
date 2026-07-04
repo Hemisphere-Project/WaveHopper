@@ -7,7 +7,7 @@
   "format": "mp3",
   "color": "#e62b1e",
   "homepage": "https://www.dublab.com/",
-  "icon": "https://www.dublab.com/assets/icons/apple-touch-icon-180x180.png",
+  "icon": "/img/stations/dublab.png",
   "nowPlaying": {
     "type": "airtime",
     "endpoint": "https://dublab.airtime.pro/api/live-info-v2"

@@ -127,7 +127,8 @@ def transform_stations_for_m5(stations: list[dict]) -> tuple[list[dict], list[Pa
             src = ICONS_SRC_DIR / Path(icon).name
             if src.exists():
                 entry['icon'] = f'icons/{src.name}'
-                icon_sources.append(src)
+                if src not in icon_sources:  # brand icons are shared across channels
+                    icon_sources.append(src)
             else:
                 print(f'warning: {entry.get("id")}: no source for {icon} in content/icons/, '
                       f'omitting from m5 pack', file=sys.stderr)
