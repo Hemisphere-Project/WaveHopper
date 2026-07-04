@@ -17,6 +17,7 @@ struct Station {
   String npType;    // nowPlaying.type or empty
   uint16_t color565 = 0xFFFF;
   bool pollable = false;  // npType exists and isn't "none"/"hls-id3"
+  bool isHls = false;     // segment-fetched live stream — buffered differently
 };
 
 // Settings support: every selectable station in the pack (hls excluded),

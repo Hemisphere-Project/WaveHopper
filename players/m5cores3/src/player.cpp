@@ -303,10 +303,18 @@ void tick() {
         // shallow cushion recovers promptly (a paced server would otherwise
         // never refill it). Cumulative-in-window so brief dips don't fire;
         // min spacing so a dead link doesn't thrash reconnects.
+        //
+        // HLS live streams are the exception: arrival is capped near realtime
+        // at the live edge, so a reconnect can't out-run consumption — it just
+        // resets to the edge and re-bursts the playlist, INTERRUPTING the CDN's
+        // natural burst recovery (measured: The Lot self-heals 100↔137 KB).
+        // For HLS we only rebuffer at near-stall, and never grow the target.
         static uint32_t lowAccumMs = 0, windowStart = 0, lastLowTick = 0,
                         lastRebuffer = 0;
+        bool hls = catalog::at(g_current).isHls;
         uint32_t target = g_targets.empty() ? WH_PREBUFFER_BYTES : g_targets[g_current];
-        uint32_t lowWater = std::max<uint32_t>(WH_REBUFFER_LOW, target / 4);
+        uint32_t lowWater = hls ? WH_REBUFFER_LOW
+                                : std::max<uint32_t>(WH_REBUFFER_LOW, target / 4);
         if (!windowStart || now - windowStart > WH_REBUFFER_WINDOW_MS) {
           windowStart = now;
           lowAccumMs = 0;
@@ -317,9 +325,9 @@ void tick() {
           lowAccumMs = 0;
           windowStart = 0;
           lastRebuffer = now;
-          if (!g_targets.empty() && buffered < WH_REBUFFER_LOW) {
+          if (!g_targets.empty() && !hls && buffered < WH_REBUFFER_LOW) {
             // Deep depletion (not just shallow-after-recovery): the station
-            // earns a bigger cushion.
+            // earns a bigger cushion. Not for HLS — its ceiling is the CDN.
             g_targets[g_current] =
                 std::min<uint32_t>(kTargetCap, g_targets[g_current] * 3 / 2);
           }

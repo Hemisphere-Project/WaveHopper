@@ -115,6 +115,7 @@ bool load() {
     if (icon[0]) s.iconPath = String(WH_FS_CONTENT_DIR "/") + icon;
     s.npType = (const char*)(o["nowPlaying"]["type"] | "");
     s.pollable = !s.npType.isEmpty() && s.npType != "none" && s.npType != "hls-id3";
+    s.isHls = strcmp(o["format"] | "", "hls") == 0;  // build ships only playable HLS (m5Url)
     if (s.id.isEmpty() || s.url.isEmpty()) continue;
     g_stations.push_back(std::move(s));
   }

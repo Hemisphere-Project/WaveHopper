@@ -76,3 +76,12 @@ adaptation-field-only packets on the audio PID that stock ESP32-audioI2S
 (players/m5cores3/lib/ESP32-audioI2S, see WAVEHOPPER-PATCHES.md). m5Url set
 to the ?video=false master. Note The Lot is often idle (physical-space
 station) — expect auto-skip outside broadcast hours.
+
+## Device throughput note (2026-07-05)
+
+The Lot's Livepeer master offers a single 194 kbps AAC variant (24.5 KB/s).
+On-device measurement shows arrival often lags that on this connection
+(18-24 KB/s) — the stream drains its cushion and rebuffers ~once/50s when the
+CDN isn't bursting. This is a stream/network ceiling, not a firmware bug;
+firmware now degrades gracefully (rare big-cushion refill, HLS-aware). If it's
+too disruptive in practice, drop thelot.m5Url to make it web-only again.
