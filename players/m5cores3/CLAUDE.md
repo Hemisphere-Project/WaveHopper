@@ -84,6 +84,11 @@ in the root `CLAUDE.md`; the normative cross-player contract is
 - LittleFS partition is labeled `littlefs`: mount with
   `LittleFS.begin(true, "/littlefs", 10, "littlefs")` (esp_littlefs defaults
   to the label "spiffs" and fails).
+- UI matches the webapp's default Dark skin: palette constants in `ui.cpp`
+  (bg #0a0a0a, fg #e8e8e8, station accent with dark accent-fg) and the real
+  VT323 font embedded via `include/font_vt323.h` — GENERATED, don't edit;
+  regenerate with `scripts/gen_gfxfont.py <VT323.ttf> include/font_vt323.h
+  VT323 16 24 32` (grab the TTF from google/fonts ofl/vt323).
 
 ## Flash & filesystem
 
