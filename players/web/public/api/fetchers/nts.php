@@ -20,7 +20,11 @@ function wh_fetch_nowplaying_nts(string $id, array $cfg, array $station): ?array
             $now  = is_array($row['now']  ?? null) ? $row['now']  : [];
             $next = is_array($row['next'] ?? null) ? $row['next'] : null;
 
-            $title    = isset($now['broadcast_title']) ? (string)$now['broadcast_title'] : null;
+            // broadcast_title arrives HTML-entity-encoded (e.g. PANDORA&#039;S);
+            // decode so clients get plain text like the embeds.details.name path.
+            $title = isset($now['broadcast_title'])
+                ? html_entity_decode((string)$now['broadcast_title'], ENT_QUOTES | ENT_HTML5, 'UTF-8')
+                : null;
             $showName = null;
             $details  = $now['embeds']['details'] ?? null;
             if (is_array($details) && isset($details['name']) && is_string($details['name'])) {
@@ -37,7 +41,9 @@ function wh_fetch_nowplaying_nts(string $id, array $cfg, array $station): ?array
                 'starts'   => isset($now['start_timestamp']) ? (string)$now['start_timestamp'] : null,
                 'ends'     => isset($now['end_timestamp'])   ? (string)$now['end_timestamp']   : null,
                 'next'     => is_array($next) ? [
-                    'title'  => isset($next['broadcast_title']) ? (string)$next['broadcast_title'] : null,
+                    'title'  => isset($next['broadcast_title'])
+                        ? html_entity_decode((string)$next['broadcast_title'], ENT_QUOTES | ENT_HTML5, 'UTF-8')
+                        : null,
                     'starts' => isset($next['start_timestamp']) ? (string)$next['start_timestamp'] : null,
                 ] : null,
             ];

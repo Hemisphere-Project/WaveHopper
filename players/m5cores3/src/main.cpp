@@ -73,7 +73,9 @@ void setup() {
                catalog::contentVersion().c_str());
 
   bool fellBack = false;
-  profile = audio_out::resolve(settings.audioOut, fellBack);
+  // Audio output is always auto-detected: Module Audio if present (I2C probe),
+  // else the internal amp. (No manual selection — RCA is unprobeable and rare.)
+  profile = audio_out::resolve(AudioOutSetting::Auto, fellBack);
   if (!audio_out::init(profile, 48000)) {
     profile = AudioProfile::Internal;
     audio_out::init(profile, 48000);
@@ -92,15 +94,37 @@ void loop() {
   // Settings overlay: modal — BtnB hold opens, taps route to it.
   if (ui::settingsOpen()) {
     auto st = M5.Touch.getDetail();
-    if (st.wasClicked()) {
+    // Vertical drag scrolls list pages (stations / wifi scan), ~40 px/entry.
+    static int dragBase = 0;
+    static bool sDragging = false;
+    if (st.isPressed()) {
+      if (!sDragging && abs(st.distanceY()) > 28 &&
+          abs(st.distanceY()) > abs(st.distanceX())) {
+        sDragging = true;
+        dragBase = 0;
+      }
+      if (sDragging) {
+        int rows = (st.distanceY() - dragBase) / 40;
+        if (rows && ui::settingsScroll(rows)) dragBase += rows * 40;
+      }
+    } else if (sDragging) {
+      sDragging = false;
+    } else if (st.wasClicked()) {
       ui::SettingsAction action = ui::settingsTouch(st.x, st.y);
-      if (action != ui::SettingsAction::None) {
+      if (action == ui::SettingsAction::ConnectWifi) {
+        String ssid = ui::settingsWifiSsid(), pw = ui::settingsWifiPassword();
+        bool ok = whwifi::joinNew(ssid, pw, 12000);
+        if (ok) {
+          whnvs::saveWifi(ssid, pw);
+          ESP.restart();  // clean bring-up on the new network via the boot path
+        } else {
+          whwifi::connect(settings, WH_WIFI_TIMEOUT_MS);  // restore old link
+          ui::settingsWifiResult(false);
+        }
+      } else if (action != ui::SettingsAction::None) {
         settings.brightness = ui::settingsBrightness();
         whnvs::saveBrightness(settings.brightness);
-        if (action == ui::SettingsAction::CloseAndReboot) {
-          whnvs::saveAudioOut(ui::settingsAudioOut());
-          ESP.restart();
-        }
+        if (action == ui::SettingsAction::CloseAndReboot) ESP.restart();
       }
     }
     vTaskDelay(pdMS_TO_TICKS(5));

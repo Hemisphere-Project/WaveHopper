@@ -49,6 +49,15 @@ bool clockValid() { return g_clockValid; }
 bool whBegin(const String& path) {
 #ifndef WH_DEV_INSECURE_HOST
   if (!g_clockValid) return false;  // cert validation would fail pre-SNTP
+  // A TLS handshake needs ~40-50 KB. During HLS playback (the stream holds its
+  // own TLS) free internal heap can dip near that; starting a second handshake
+  // then risks an allocation-failure crash. Skip this poll/post — sessions and
+  // metadata both tolerate a dropped sample.
+  if (ESP.getFreeHeap() < 45000) {
+    log_w("net: skipping %s, low heap (%lu)", path.c_str(),
+          (unsigned long)ESP.getFreeHeap());
+    return false;
+  }
 #endif
   if (xSemaphoreTake(g_mutex, pdMS_TO_TICKS(15000)) != pdTRUE) return false;
   initOnce();

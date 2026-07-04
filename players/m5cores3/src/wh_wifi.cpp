@@ -52,6 +52,18 @@ bool syncClock(uint32_t timeoutMs) {
   return false;
 }
 
+bool joinNew(const String& ssid, const String& pass, uint32_t timeoutMs) {
+  if (ssid.isEmpty()) return false;
+  WiFi.disconnect();
+  delay(100);
+  WiFi.begin(ssid.c_str(), pass.c_str());
+  uint32_t deadline = millis() + timeoutMs;
+  while (WiFi.status() != WL_CONNECTED && millis() < deadline) delay(100);
+  bool ok = WiFi.status() == WL_CONNECTED;
+  log_i("joinNew %s -> %s", ssid.c_str(), ok ? "ok" : "failed");
+  return ok;
+}
+
 bool isConnected() { return WiFi.status() == WL_CONNECTED; }
 
 }  // namespace whwifi

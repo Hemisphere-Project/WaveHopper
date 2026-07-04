@@ -23,12 +23,15 @@ void volumeOverlay(uint8_t vol);
 
 // Modal settings overlay (BtnB hold). While open, main routes taps to
 // settingsTouch() and applies the returned action.
-enum class SettingsAction { None, Close, CloseAndReboot };
+enum class SettingsAction { None, Close, CloseAndReboot, ConnectWifi };
 bool settingsOpen();
 void settingsShow(AudioOutSetting audioOut, uint8_t brightness);
 SettingsAction settingsTouch(int x, int y);
-AudioOutSetting settingsAudioOut();   // pending value after Close*
+bool settingsScroll(int rows);        // drag-scroll the active list page
 uint8_t settingsBrightness();
+String settingsWifiSsid();            // credentials entered on the keyboard
+String settingsWifiPassword();
+void settingsWifiResult(bool ok);     // main calls after a connect attempt
 
 // Thin cushion-health strip at the bottom edge (muted green/amber/red fill
 // proportional to buffered/target). Call ~1 Hz while playing.
