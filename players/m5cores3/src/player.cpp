@@ -39,6 +39,7 @@ char g_streamTitle[160] = "";
 PlayerState g_state = PlayerState::Idle;
 int g_current = -1;
 uint8_t g_attempt = 0;
+bool g_tuneFast = false;  // manual surf: short prebuffer for fast feedback
 uint32_t g_deadline = 0;
 std::vector<bool> g_failedSweep;
 uint32_t g_sweepAt = 0;
@@ -113,9 +114,10 @@ void playerTask(void*) {
   }
 }
 
-void startTune(int index, uint8_t attempt) {
+void startTune(int index, uint8_t attempt, bool fast = false) {
   g_current = index;
   g_attempt = attempt;
+  g_tuneFast = fast;
   g_state = PlayerState::Tuning;
   g_deadline = millis() + WH_TUNE_TIMEOUT_MS;
   g_stallSince = 0;
@@ -157,7 +159,7 @@ void failCurrent() {
 
 void manualTune(int index) {
   clearSweep();  // user intent resets the failure sweep
-  startTune(index, 1);
+  startTune(index, 1, /*fast=*/true);
 }
 
 }  // namespace
@@ -237,8 +239,10 @@ void tick() {
       }
       uint32_t buffered = g_audio.inBufferFilled();
       uint32_t tunedFor = WH_TUNE_TIMEOUT_MS - (g_deadline - now);
-      bool cushionDone = buffered >= WH_PREBUFFER_BYTES ||
-                         (tunedFor > WH_PREBUFFER_WAIT_MS && buffered > 16384);
+      uint32_t targetBytes = g_tuneFast ? WH_PREBUFFER_FAST_BYTES : WH_PREBUFFER_BYTES;
+      uint32_t targetWait = g_tuneFast ? WH_PREBUFFER_FAST_WAIT_MS : WH_PREBUFFER_WAIT_MS;
+      bool cushionDone = buffered >= targetBytes ||
+                         (tunedFor > targetWait && buffered > 8192);
       if (g_audio.isRunning() && cushionDone) {
         if (g_decodeSuspended.exchange(false)) vTaskResume(g_decodeTask);
         log_i("playing [%d] with %lu bytes cushion", g_current, (unsigned long)buffered);
@@ -274,16 +278,21 @@ void tick() {
         } else {
           g_stallSince = 0;
         }
-        // Depleted cushion → one deliberate reconnect (the server's
-        // burst-on-connect + prebuffer hold rebuild it) instead of gap-crackle.
-        static uint32_t lowSince = 0;
-        if (buffered >= WH_REBUFFER_LOW) {
-          lowSince = 0;
-        } else if (!lowSince) {
-          lowSince = now;
-        } else if (now - lowSince > WH_REBUFFER_LOW_MS) {
-          lowSince = 0;
-          log_e("cushion depleted on [%d] (%lu bytes) — rebuffering", g_current,
+        // Depleted cushion → one deliberate reconnect (burst-on-connect or a
+        // fresh CDN edge rebuilds it) instead of sawtooth gap-crackle. The
+        // trigger is cumulative low time in a rolling window: brief dips that
+        // self-recover don't fire; a chronic sawtooth does.
+        static uint32_t lowAccumMs = 0, windowStart = 0, lastLowTick = 0;
+        if (!windowStart || now - windowStart > WH_REBUFFER_WINDOW_MS) {
+          windowStart = now;
+          lowAccumMs = 0;
+        }
+        if (buffered < WH_REBUFFER_LOW && lastLowTick) lowAccumMs += now - lastLowTick;
+        lastLowTick = now;
+        if (lowAccumMs > WH_REBUFFER_LOW_MS) {
+          lowAccumMs = 0;
+          windowStart = 0;
+          log_e("chronic low buffer on [%d] (%lu now) — rebuffering", g_current,
                 (unsigned long)buffered);
           startTune(g_current, 2);
           break;

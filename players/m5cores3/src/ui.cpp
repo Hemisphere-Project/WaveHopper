@@ -69,16 +69,23 @@ String effectiveTitle() {
   return "~ on air ~";
 }
 
+// The marquee strip is rendered ONCE per title into a wide sprite; each frame
+// only pushes a clipped scrolling window. Re-rendering text at 30 fps starved
+// the stream's TLS pump enough to drain the audio cushion (found the hard way
+// — NTS burned 98 KB of buffer in 11 s with a long title scrolling).
+constexpr int MARQUEE_GAP = 60;
+
 void setMarquee(const String& text) {
-  g_marquee.setFont(&F_BIG);
-  g_marquee.setTextSize(1);
-  g_marqueeTextW = g_marquee.textWidth(text.c_str());
+  g_card.setFont(&F_BIG);
+  g_card.setTextSize(1);
+  g_marqueeTextW = g_card.textWidth(text.c_str());
   g_marqueeText = text;
   g_marqueeOffset = 0;
   g_marqueeActive = g_marqueeTextW > MARQUEE_W;
-}
 
-void drawMarqueeFrame() {
+  int stripW = g_marqueeActive ? g_marqueeTextW + MARQUEE_GAP + MARQUEE_W : MARQUEE_W;
+  g_marquee.deleteSprite();
+  g_marquee.createSprite(stripW, MARQUEE_H);
   g_marquee.fillScreen(COL_BG);
   g_marquee.setFont(&F_BIG);
   g_marquee.setTextSize(1);
@@ -87,13 +94,20 @@ void drawMarqueeFrame() {
     g_marquee.setTextDatum(top_center);
     g_marquee.drawString(g_marqueeText.c_str(), MARQUEE_W / 2, 2);
   } else {
-    constexpr int GAP = 60;
     g_marquee.setTextDatum(top_left);
-    int x = -g_marqueeOffset;
-    g_marquee.drawString(g_marqueeText.c_str(), x, 2);
-    g_marquee.drawString(g_marqueeText.c_str(), x + g_marqueeTextW + GAP, 2);
+    g_marquee.drawString(g_marqueeText.c_str(), 0, 2);
+    g_marquee.drawString(g_marqueeText.c_str(), g_marqueeTextW + MARQUEE_GAP, 2);
   }
-  g_marquee.pushSprite(MARQUEE_X, MARQUEE_Y);
+}
+
+void drawMarqueeFrame() {
+  if (!g_marqueeActive) {
+    g_marquee.pushSprite(MARQUEE_X, MARQUEE_Y);
+    return;
+  }
+  M5.Display.setClipRect(MARQUEE_X, MARQUEE_Y, MARQUEE_W, MARQUEE_H);
+  g_marquee.pushSprite(MARQUEE_X - g_marqueeOffset, MARQUEE_Y);
+  M5.Display.clearClipRect();
 }
 
 void drawIconOrPlaceholder(const Station& s) {
@@ -370,9 +384,9 @@ void tick() {
 
   if (g_haveCard && g_marqueeActive && g_snap.state == PlayerState::Playing &&
       now >= g_marqueeNextStep) {
-    g_marqueeNextStep = now + 33;  // ~30 fps, 2 px/frame
-    g_marqueeOffset += 2;
-    if (g_marqueeOffset >= g_marqueeTextW + 60) g_marqueeOffset = 0;
+    g_marqueeNextStep = now + 50;  // 20 fps is plenty for text
+    g_marqueeOffset += 3;
+    if (g_marqueeOffset >= g_marqueeTextW + MARQUEE_GAP) g_marqueeOffset = 0;
     drawMarqueeFrame();
   }
 }

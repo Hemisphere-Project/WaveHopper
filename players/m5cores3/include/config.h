@@ -60,12 +60,22 @@
 // the wait cap), trading tune latency for a persistent jitter cushion.
 #define WH_PREBUFFER_BYTES    98304  // ~4 s at 192 kbps
 #define WH_PREBUFFER_WAIT_MS  4500   // cap on the buffering hold
-// Depleted-cushion recovery: when the buffer stays under LOW for LOW_MS while
-// playing, the connection is sick (or jitter ate the cushion for good) — one
-// deliberate reconnect rebuilds it via the server's burst-on-connect, instead
-// of many micro-gaps.
-#define WH_REBUFFER_LOW       8192
-#define WH_REBUFFER_LOW_MS    5000
+// Manual station surfing wants fast audio feedback over a deep cushion —
+// short hold; the depleted-cushion reconnect tops it up later if needed.
+#define WH_PREBUFFER_FAST_BYTES    24576
+#define WH_PREBUFFER_FAST_WAIT_MS  1200
+// Depleted-cushion recovery: the failure mode is a sawtooth — buffer dips
+// near zero (audible gap) and partially recovers, over and over, never
+// refilling the cushion (paced servers) or stuck on a slow CDN edge. Trigger
+// on CUMULATIVE time spent under LOW within a rolling window, then reconnect
+// once: the burst-on-connect (or a fresh edge) rebuilds the cushion.
+#define WH_REBUFFER_LOW        16384  // "low" watermark
+#define WH_REBUFFER_LOW_MS     8000   // cumulative low time that triggers…
+#define WH_REBUFFER_WINDOW_MS  30000  // …within this window
+
+// Screen auto-dim: dim to a readable fraction after inactivity; any touch
+// wakes (and is swallowed). No IMU on the CoreS3 SE — no motion wake.
+#define WH_DIM_AFTER_MS  30000
 #define WH_STALL_MS           20000  // PLAYING with empty buffer this long = dead
 #define WH_ALLFAIL_SWEEP_MS   60000  // retry period after every station failed
 #define WH_NP_POLL_MS         30000  // now-playing poll while playing

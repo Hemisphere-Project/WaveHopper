@@ -71,7 +71,9 @@ def build_font(ttf_path: str, size: int, name: str) -> str:
     out.append('};')
     out.append(f'static lgfx::GFXglyph {fname}_glyphs[] = {{')
     for (offset, w, h, adv, xo, yo), code in zip(glyphs, range(FIRST, LAST + 1)):
-        ch = chr(code) if 32 < code < 127 else ''
+        # No backslash in comments: '// 92 \' is a line continuation in C++
+        # and swallows the next glyph entry (shifted every glyph after it).
+        ch = chr(code) if 32 < code < 127 and code != 92 else ''
         out.append(f'    {{ {offset}, {w}, {h}, {adv}, {xo}, {yo} }},  // {code} {ch}')
     out.append('};')
     out.append(f'static const lgfx::GFXfont {fname}('
