@@ -1,10 +1,10 @@
-// Screen rendering: boot status lines, the full-screen station card, and the
-// transient volume overlay. M1 draws directly; M2 moves to canvases + toast
-// list + marquee + icons.
+// Screen rendering: boot status lines, canvas-based station card (icon,
+// marquee title), transient station-list toast on change, volume overlay.
 #pragma once
 
 #include <Arduino.h>
 
+#include "now_playing.h"
 #include "player.h"
 
 namespace ui {
@@ -13,12 +13,14 @@ void begin(uint8_t brightness);
 // Boot status screen (scrolling text lines while the sequencer runs).
 void bootLine(const char* fmt, ...);
 
-// Redraw the card for the given snapshot (station looked up via catalog).
-void render(const PlayerSnapshot& snap);
+// Rebuild + push the card. np may carry empty strings (falls back to ICY
+// title from the snapshot, then a generic on-air marker).
+void render(const PlayerSnapshot& snap, const NowPlaying& np);
 
-// Show volume bar for ~1.5 s (tick() restores the card afterwards).
+// Transient overlays (tick() restores the card when they expire).
+void stationToast(int currentIndex);  // list of neighbors, ~2 s
 void volumeOverlay(uint8_t vol);
 
-// Timers (overlay expiry). Call every loop.
+// Timers: marquee scroll + overlay expiry. Call every loop.
 void tick();
 }  // namespace ui

@@ -14,12 +14,16 @@
 #include "wh_wifi.h"
 #include "audio_out.h"
 #include "catalog.h"
+#include "net.h"
+#include "now_playing.h"
 #include "player.h"
 #include "ui.h"
 
 static WhSettings settings;
 static AudioProfile profile = AudioProfile::Internal;
 static uint32_t lastRenderedGen = 0;
+static uint32_t lastNpGen = 0;
+static int lastStationIndex = -1;
 
 void setup() {
   Serial.begin(115200);  // HWCDC: Serial.print* needs this, log_* doesn't
@@ -43,6 +47,11 @@ void setup() {
     delay(5000);
   }
   ui::bootLine("wifi: %s ok", settings.ssid.c_str());
+
+  ui::bootLine("clock: syncing ...");
+  bool clockOk = whwifi::syncClock(WH_SNTP_TIMEOUT_MS);
+  net::setClockValid(clockOk);
+  ui::bootLine(clockOk ? "clock: ok" : "clock: FAILED (no sync/ota/metadata)");
 
   // M3: content sync + firmware OTA check run here, before playback starts.
 
@@ -98,9 +107,18 @@ void loop() {
   }
 
   snap = player::snapshot();
-  if (snap.generation != lastRenderedGen && snap.stationIndex >= 0) {
+  bool stationChanged = snap.stationIndex != lastStationIndex;
+  if (stationChanged && lastStationIndex >= 0) ui::stationToast(snap.stationIndex);
+  lastStationIndex = snap.stationIndex;
+
+  now_playing::tick(snap.state == PlayerState::Playing, snap.stationIndex, stationChanged);
+  NowPlaying np = now_playing::current();
+
+  if ((snap.generation != lastRenderedGen || np.generation != lastNpGen) &&
+      snap.stationIndex >= 0) {
     lastRenderedGen = snap.generation;
-    ui::render(snap);
+    lastNpGen = np.generation;
+    ui::render(snap, np);
   }
   ui::tick();
 
