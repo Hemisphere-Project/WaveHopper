@@ -23,7 +23,17 @@ only The Lot hit it. **Verified**: The Lot decodes and plays on the CoreS3.
 Worth upstreaming to schreibfaul1 — it's a general Livepeer-HLS bug, not
 WaveHopper-specific.
 
-### 2. TS demuxer diagnostics (`#ifdef WH_TS_DIAG`, off by default)
-`src/Audio.cpp` `ts_parsePacket()` — logs PMT stream discovery + the failing
-packet's header/bytes at the "PES not found" branch. Kept (compiled out) for
-the next TS station that misbehaves. Enable with `-DWH_TS_DIAG`.
+### 2. Diagnostics (`#ifdef WH_TS_DIAG`, off by default)
+`src/Audio.cpp` — kept (compiled out) for the next misbehaving TS/HLS station:
+- `ts_parsePacket()`: PMT stream discovery + the "PES not found" packet dump.
+- m3u8 loop / `httpPrint()`: per-segment inter-arrival + buffer, connection
+  reuse vs reconnect, and the live-edge 2 s wait. Enable with `-DWH_TS_DIAG`.
+
+## Profiling notes (The Lot / Livepeer, 2026-07-05)
+Segment-fetch timing measured on hardware: **the lib is efficient here.** Keep-
+alive is reused on every segment (no per-segment TLS — handshakes only twice at
+startup, ~330 ms each); steady-state cadence is 2.0 s, matched to the 2.04 s
+segments; when the network keeps up the buffer holds dead-steady (~119.5 KB for
+20 s+). The occasional drain is purely per-segment fetch time exceeding 2 s
+under marginal RF, absorbed only by Livepeer's ~5 s DVR back-buffer. No lib
+overhead to reclaim — it's a stream/network ceiling.

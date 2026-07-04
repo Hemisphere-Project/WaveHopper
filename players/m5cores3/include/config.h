@@ -68,6 +68,11 @@
 // short hold; the depleted-cushion reconnect tops it up later if needed.
 #define WH_PREBUFFER_FAST_BYTES    49152
 #define WH_PREBUFFER_FAST_WAIT_MS  2000
+// HLS live streams cap their cushion at the CDN's DVR window (~5 s for
+// Livepeer, measured ~120 KB) — a 160 KB target is unreachable, so startup
+// always waited out the full hold. Target what's actually reachable so HLS
+// starts as soon as the initial segment burst lands.
+#define WH_PREBUFFER_HLS_BYTES     90112   // ~4 s
 // Depleted-cushion recovery: the failure mode is a sawtooth — buffer dips
 // near zero (audible gap) and partially recovers, over and over, never
 // refilling the cushion (paced servers) or stuck on a slow CDN edge. Trigger

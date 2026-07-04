@@ -903,12 +903,26 @@ bool Audio::httpPrint(const char* host) {
         }
         if (f_equal) info(*this, evt_info, "The host has disconnected, reconnecting");
 
+#ifdef WH_TS_DIAG
+        {
+            uint32_t t0 = millis();
+            bool ok = m_client->connect(hwoe.get(), port);
+            AUDIO_LOG_ERROR("WH-HLS: %s connect to %s took %lums",
+                            f_equal ? "REUSE-DROPPED" : "NEW-HOST", hwoe.get(),
+                            (unsigned long)(millis() - t0));
+            if (!ok) { AUDIO_LOG_ERROR("connection lost %s", c_host.c_get()); stopSong(); return false; }
+        }
+#else
         if (!m_client->connect(hwoe.get(), port)) {
             AUDIO_LOG_ERROR("connection lost %s", c_host.c_get());
             stopSong();
             return false;
         }
+#endif
     }
+#ifdef WH_TS_DIAG
+    else { AUDIO_LOG_ERROR("WH-HLS: keep-alive reused (no reconnect)"); }
+#endif
     m_currentHost.clone_from(c_host);
     m_client->print(rqh.get());
 
@@ -3531,7 +3545,21 @@ void Audio::loop() {
                 }
 
                 if (m_lVar.no_host_cnt == 2) { m_lVar.no_host_timer = millis() + 2000; } // no new url? wait 2 seconds
+#ifdef WH_TS_DIAG
+                if (m_lVar.no_host_cnt == 2)
+                    AUDIO_LOG_ERROR("WH-HLS: live-edge, no new segment -> wait 2000ms");
+#endif
                 if (host.valid()) {                                                      // host contains the next playlist URL
+#ifdef WH_TS_DIAG
+                    {
+                        static uint32_t wh_lastSeg = 0;
+                        uint32_t nowms = millis();
+                        AUDIO_LOG_ERROR("WH-HLS: next segment, %lums since last, buf=%lu",
+                                        (unsigned long)(wh_lastSeg ? nowms - wh_lastSeg : 0),
+                                        (unsigned long)InBuff.bufferFilled());
+                        wh_lastSeg = nowms;
+                    }
+#endif
                     httpPrint(host.get());
                     m_dataMode = HTTP_RESPONSE_HEADER;
                 } else { // host == NULL means connect to m3u8 URL

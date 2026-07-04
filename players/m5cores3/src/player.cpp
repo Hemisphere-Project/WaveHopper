@@ -254,6 +254,9 @@ void tick() {
       uint32_t buffered = g_audio.inBufferFilled();
       uint32_t tunedFor = WH_TUNE_TIMEOUT_MS - (g_deadline - now);
       uint32_t adaptive = g_targets.empty() ? WH_PREBUFFER_BYTES : g_targets[g_current];
+      // HLS caps its cushion at the CDN DVR window — target what's reachable so
+      // startup ends on the initial burst, not the deadline.
+      if (catalog::at(g_current).isHls) adaptive = WH_PREBUFFER_HLS_BYTES;
       uint32_t targetBytes = g_tuneFast ? WH_PREBUFFER_FAST_BYTES : adaptive;
       // Scale the wait cap with the adaptive target (paced servers need time).
       uint32_t targetWait = g_tuneFast
