@@ -56,3 +56,6 @@ The lib (ESP32-audioI2S 3.4.6) plays LYL's HLS natively: master → AAC-LC
 variants, standard nginx MPEG-TS segments. Verified 50+ s stable on the
 CoreS3 (buffer flat, arrival = consumption). `m5Url` points at `aac_hifi`
 (211 kbps) — the lib otherwise picks the first-listed variant (lofi).
+
+Correction: m5Url must be the MASTER (live.m3u8) — pointed directly at a
+media playlist (aac_hifi.m3u8) the lib never reaches "stream ready".

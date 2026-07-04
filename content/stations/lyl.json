@@ -11,5 +11,5 @@
   "nowPlaying": {
     "type": "lyl-graphql"
   },
-  "m5Url": "https://radio.lyl.live/hls/aac_hifi.m3u8"
+  "m5Url": "https://radio.lyl.live/hls/live.m3u8"
 }
