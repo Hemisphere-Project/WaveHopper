@@ -70,6 +70,15 @@ Web code changes additionally require an `APP_VERSION` bump in
 
 Firmware releases follow the runbook at the end of CONTENT-API.md.
 
+## Listener telemetry
+
+All players post anonymous start/heartbeat/stop events to
+`/api/telemetry.php` (schema + privacy posture in CONTENT-API.md §Telemetry).
+The server derives sessions from heartbeat continuity into a SQLite file
+outside the docroot (`<host>/telemetry/`), and `/stats/` renders a dashboard
+(listeners, hours, retention, station shares, coarse geo) behind a
+server-side key.
+
 ## Why per-player content packs
 
 Different players have different constraints (the M5 can't render remote

@@ -20,6 +20,7 @@
 #include "net.h"
 #include "now_playing.h"
 #include "player.h"
+#include "telemetry.h"
 #include "ui.h"
 
 static WhSettings settings;
@@ -212,6 +213,11 @@ void loop() {
 
   now_playing::tick(snap.state == PlayerState::Playing, snap.stationIndex, stationChanged);
   NowPlaying np = now_playing::current();
+
+  telemetry::tick(snap.state == PlayerState::Playing,
+                  snap.stationIndex >= 0 && snap.stationIndex < (int)catalog::count()
+                      ? catalog::at(snap.stationIndex).id
+                      : String());
 
   if (browseIdx >= 0 && browseIdx != snap.stationIndex) {
     // Preview card for the browsed station (not yet tuned).

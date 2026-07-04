@@ -16,10 +16,11 @@ in the root `CLAUDE.md`; the normative cross-player contract is
 ## Contract summary (inline for convenience — CONTENT-API.md is normative)
 
 - Base host: `https://waverz.net`, verified TLS (ISRG roots in
-  `include/certs.h`, SNTP required first). Three endpoint families only:
+  `include/certs.h`, SNTP required first). Four endpoint families only:
   `/content/m5cores3/*`, `/content/firmware/m5cores3/*`,
-  `/api/now-playing.php?id=<id>`. Audio streams go to arbitrary hosts
-  (unverified — accepted trade-off).
+  `/api/now-playing.php?id=<id>`, `/api/telemetry.php` (anonymous listener
+  stats, fire-and-forget on its own worker). Audio streams go to arbitrary
+  hosts (unverified — accepted trade-off).
 - Content sync: **equality** on `contentVersion`, per-file sha256 diff,
   staged atomic commit — implemented in `content_sync.cpp`; don't reinvent.
 - Firmware: update iff remote `build` (integer) **>** compiled `WH_FW_BUILD`.

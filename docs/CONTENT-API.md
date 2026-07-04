@@ -176,6 +176,31 @@ while playing and visible/awake, ≥ 30 s interval. Stations with
 `nowPlaying.type` of `hls-id3` or `none` (or no `nowPlaying` at all) are not
 served by the dispatcher.
 
+## Telemetry
+
+`POST /api/telemetry.php` — anonymous listener telemetry from all players.
+Body (JSON, ≤1 KB):
+
+```json
+{"v":1, "id":"<uuid>", "p":"web|m5cores3|mobile", "ev":"start|hb|stop",
+ "st":"<station-id>", "tz":"Europe/Paris", "lang":"fr-FR", "app":"<version>"}
+```
+
+- `id` is a random UUID generated once per install (web `localStorage`,
+  device NVS) — never tied to any personal data.
+- Cadence: `start` when playback of a station begins, `hb` every 60 s (web) /
+  120 s (device) while playing, `stop` best-effort. **Heartbeats are the
+  source of truth** — the server derives listening sessions from heartbeat
+  continuity (gap windows 200 s web / 400 s device); a lost stop event costs
+  nothing. Clients fire-and-forget: telemetry must never affect playback.
+- Responses: 204 on accept, 400 on validation failure, 405 non-POST. Clients
+  ignore all of them.
+- Privacy: the client IP is used once, in memory, to resolve coarse location
+  (country + city via ip-api.com, cached per /24 prefix) and is **never
+  stored**. Stored per install: player type, timezone, language, app version,
+  coarse location, first/last seen. Data lives in a SQLite file outside the
+  docroot; the stats page (`/stats/?key=…`) is gated by a server-side secret.
+
 ## Cache policy (server)
 
 - `/content/**/manifest.json`: `Cache-Control: max-age=0, must-revalidate`.

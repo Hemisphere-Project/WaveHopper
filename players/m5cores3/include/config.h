@@ -21,6 +21,10 @@
 // Now-playing metadata, shared with every other player.
 #define WH_NOW_PLAYING_PATH "/api/now-playing.php?id="
 
+// Listener telemetry (anonymous install id, see docs/CONTENT-API.md §Telemetry).
+#define WH_TELEMETRY_PATH  "/api/telemetry.php"
+#define WH_TELEMETRY_HB_MS 120000  // heartbeat while playing (each POST = a TLS handshake)
+
 // Highest content manifest schemaVersion this firmware understands. If the
 // remote manifest advertises a newer one, skip content sync (but still check
 // for firmware updates — that is how we get unstuck).

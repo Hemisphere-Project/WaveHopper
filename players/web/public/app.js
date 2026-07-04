@@ -1,7 +1,7 @@
 // Waverz·net — frontend entry.
 // Steps 1-4: shell, MP3+HLS playback with auto-skip, config mode + localStorage.
 
-const APP_VERSION = '20260704b';
+const APP_VERSION = '20260704c';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -32,6 +32,7 @@ const els = {
 const LS_KEY = 'wh:disabled';
 const LS_SKIN = 'wh:skin';
 const LS_LAST = 'wh:lastStationId';
+const LS_TID = 'wh:tid';
 
 const SKINS = [
   { id: 'dark',    label: 'Dark',    mono: false },
@@ -695,6 +696,7 @@ function autoSkipOnFailure(reason) {
   if (state.autoSkipChain >= cap) {
     setStatus('no stations on air', true);
     state.playing = false;
+    tlStopped();
     teardownHls();
     renderNow();
     return;
@@ -746,10 +748,79 @@ function prevStation() {
   }
 }
 
+// --- Listener telemetry -----------------------------------------------------
+// Anonymous install id + start/heartbeat/stop events to /api/telemetry.php
+// (docs/CONTENT-API.md §Telemetry). Heartbeats ride `timeupdate` so background
+// tab timer throttling can't starve them; sessions are derived server-side
+// from heartbeat gaps, so losing a stop event is harmless. Fire-and-forget:
+// telemetry must never affect playback.
+const TL_HB_MS = 60000;
+let tlStation = null;  // station id currently reported as listening
+let tlLastHb = 0;
+
+function tlId() {
+  try {
+    let id = localStorage.getItem(LS_TID);
+    if (!id) {
+      id = (crypto.randomUUID && crypto.randomUUID()) || null;
+      if (id) localStorage.setItem(LS_TID, id);
+    }
+    return id;
+  } catch { return null; }
+}
+
+function tlSend(ev, stationId, { beacon = false } = {}) {
+  const id = tlId();
+  if (!id || !stationId) return;
+  const body = JSON.stringify({
+    v: 1, id, p: 'web', ev, st: stationId,
+    tz: (Intl.DateTimeFormat().resolvedOptions().timeZone || ''),
+    lang: navigator.language || '',
+    app: APP_VERSION,
+  });
+  try {
+    if (beacon && navigator.sendBeacon) {
+      navigator.sendBeacon('/api/telemetry.php', new Blob([body], { type: 'application/json' }));
+    } else {
+      fetch('/api/telemetry.php', {
+        method: 'POST', body, keepalive: true,
+        headers: { 'Content-Type': 'application/json' },
+      }).catch(() => {});
+    }
+  } catch {}
+}
+
+function tlPlaying() {
+  const s = state.stations[state.currentIndex];
+  if (!s) return;
+  if (tlStation !== s.id) {
+    tlStation = s.id;
+    tlLastHb = Date.now();
+    tlSend('start', s.id);
+  }
+}
+
+function tlStopped({ beacon = false } = {}) {
+  if (!tlStation) return;
+  tlSend('stop', tlStation, { beacon });
+  tlStation = null;
+}
+
+audio.addEventListener('timeupdate', () => {
+  if (!tlStation || !state.playing) return;
+  const now = Date.now();
+  if (now - tlLastHb < TL_HB_MS) return;
+  tlLastHb = now;
+  tlSend('hb', tlStation);
+});
+window.addEventListener('pagehide', () => tlStopped({ beacon: true }));
+// -----------------------------------------------------------------------------
+
 audio.addEventListener('play', () => { state.playing = true; renderNow(); });
 audio.addEventListener('playing', () => {
   state.autoSkipChain = 0;
   setStatus('on air');
+  tlPlaying();
   // Re-assert MediaSession state once playback actually starts. On boundary
   // crossings (hls.js ↔ native) the element passes through a brief paused
   // state during src reassignment; re-asserting here re-anchors the Android
@@ -768,6 +839,7 @@ audio.addEventListener('pause', () => {
   // Reacting would blink "paused" into the UI and drop the Android notification.
   if (state.switching) return;
   state.playing = false;
+  tlStopped();
   stopNowPlayingPoll();
   renderNow();
   if (state.mode === 'player') setStatus('paused');
