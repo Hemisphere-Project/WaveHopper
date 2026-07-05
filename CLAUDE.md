@@ -42,11 +42,13 @@ The build is idempotent; running it with no content changes must produce no
 diff (if it doesn't, that's a bug in `tools/build.py`).
 
 Pushing to `main` auto-deploys production: a GitHub webhook hits
-`/api/deploy.php` on waverz.net, which `git pull`s the server's clone
-(docroot = its `players/web/public/`, reachable as `ssh hmsphr`,
-`~/web/waverz.net/WaveHopper`). Anything you commit under the docroot goes
-live on push — `.github/workflows/verify-web.yml` fails CI when committed
-artifacts don't match `content/`, but it does not block the pull.
+`/api/deploy.php` on waverz.net. The host's web PHP disables all exec
+functions, so the receiver deploys in pure PHP — fetch repo tarball, extract,
+mirror `players/web/public/` into the docroot. Anything you commit under the
+docroot goes live on push. Server clone: `ssh hmsphr`,
+`~/web/waverz.net/WaveHopper` (CLI git works there for manual pulls).
+Firmware OTA is separate: `pio run` then `python3 tools/release-m5.py` to
+publish a new binary + manifest (bump `WH_FW_BUILD` first).
 
 ## Station workflow
 

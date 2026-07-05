@@ -147,17 +147,20 @@ root pointing at its `players/web/public/` (via a `public` symlink kept for
 the hosting config).
 
 **Automatic**: a GitHub push webhook hits
-[`/api/deploy.php`](players/web/public/api/deploy.php), which validates the
-HMAC and runs `git pull --ff-only` on the server clone. The shared secret
-lives only on the host (`<repo-root>/.deploy-secret`, gitignored) — leaking
-it can at worst trigger a pull of this public repo. A separate CI check
-([.github/workflows/verify-web.yml](.github/workflows/verify-web.yml))
-fails the push if committed artifacts don't match `content/` sources.
-(Infomaniak's sshd ignores `command=` key restrictions, which is why a
-CI-held SSH deploy key was rejected: it would have been a full-shell
-credential.)
+[`/api/deploy.php`](players/web/public/api/deploy.php). Because Infomaniak's
+web PHP-FPM disables every exec function (no `git`/`shell_exec`), the receiver
+deploys in **pure PHP**: on a HMAC-verified push to `main` it fetches the repo
+tarball from GitHub, extracts it (PharData), and mirrors the
+`players/web/public/` subtree into the docroot (copy-changed, delete-absent),
+preserving `api/cache/` and host files. The deployed sha lands in
+`.deployed`. The HMAC secret lives only on the host
+(`<repo-root>/.deploy-secret`, gitignored) — leaking it can at worst trigger a
+redeploy of this public repo. A separate CI check
+([.github/workflows/verify-web.yml](.github/workflows/verify-web.yml)) fails
+the push if committed artifacts don't match `content/` sources.
 
-**Manual** (fallback): `ssh` to the host, `git pull` in the clone.
+**Manual** (fallback): `ssh hmsphr`, then `git pull` in
+`~/web/waverz.net/WaveHopper` (CLI git works; only the web PHP can't exec).
 
 Cache rules live in `players/web/public/.htaccess` (Apache/LiteSpeed); mirror
 them in nginx where applicable — `/content/**/manifest.json` must never be

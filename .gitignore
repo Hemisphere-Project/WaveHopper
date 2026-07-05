@@ -153,3 +153,6 @@ players/m5cores3/data/*
 
 # server-side webhook secret (lives only on the host)
 .deploy-secret
+
+# server-side deploy marker (written by api/deploy.php)
+players/web/public/.deployed
