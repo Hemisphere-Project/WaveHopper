@@ -13,7 +13,9 @@
 namespace {
 
 constexpr int W = 320, H = 240;
-constexpr int MARQUEE_X = 8, MARQUEE_Y = 150, MARQUEE_W = W - 16, MARQUEE_H = 36;
+constexpr int MARQUEE_X = 8, MARQUEE_W = W - 16, MARQUEE_H = 30;
+constexpr int MARQUEE_Y1 = 150, MARQUEE_Y2 = 184;  // title line, subtitle line
+constexpr int MARQUEE_GAP = 60;
 
 // Web player's default (Dark) skin palette — style.css :root.
 constexpr uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b) {
@@ -28,7 +30,7 @@ constexpr uint16_t COL_PANEL = rgb565(0x16, 0x16, 0x16);   // row/panel fill
 // per-station accent (accent-fg = COL_BG, like the web) comes from color565.
 
 const lgfx::GFXfont& F_SMALL = whfonts::VT323_20;
-const lgfx::GFXfont& F_MED = whfonts::VT323_26;   // metadata (title + subtitle)
+const lgfx::GFXfont& F_MED = whfonts::VT323_24;   // metadata (title + subtitle)
 const lgfx::GFXfont& F_BIG = whfonts::VT323_34;   // station name
 
 // Page header: accent title + underline. Returns the y below it for content.
@@ -42,8 +44,67 @@ int drawHeader(LovyanGFX& d, const char* title) {
   return 54;
 }
 
-M5Canvas g_card(&M5.Display);     // full card, rebuilt on change, pushed whole
-M5Canvas g_marquee(&M5.Display);  // title strip, pushed only while scrolling
+M5Canvas g_card(&M5.Display);  // full card, rebuilt on change, pushed whole
+
+// A single-line strip that scrolls when its text overflows. Rendered once per
+// text change into a wide sprite; each frame pushes a clipped window (cheap —
+// re-rendering text at frame rate starved the stream's TLS pump).
+struct Marquee {
+  M5Canvas sprite{&M5.Display};
+  String text;
+  int y = 0, textW = 0, offset = 0;
+  bool active = false;
+  uint32_t nextStep = 0;
+
+  void begin(int y_) {
+    y = y_;
+    sprite.setPsram(true);
+    sprite.setColorDepth(16);
+    sprite.createSprite(MARQUEE_W, MARQUEE_H);
+  }
+  void set(const String& t, uint16_t fg) {
+    g_card.setFont(&F_MED);
+    g_card.setTextSize(1);
+    textW = g_card.textWidth(t.c_str());
+    text = t;
+    offset = 0;
+    active = textW > MARQUEE_W;
+    int stripW = active ? textW + MARQUEE_GAP + MARQUEE_W : MARQUEE_W;
+    sprite.deleteSprite();
+    sprite.createSprite(stripW, MARQUEE_H);
+    sprite.fillScreen(COL_BG);
+    sprite.setFont(&F_MED);
+    sprite.setTextSize(1);
+    sprite.setTextColor(fg, COL_BG);
+    int cy = MARQUEE_H / 2;
+    if (!active) {
+      sprite.setTextDatum(middle_center);
+      sprite.drawString(text.c_str(), MARQUEE_W / 2, cy);
+    } else {
+      sprite.setTextDatum(middle_left);
+      sprite.drawString(text.c_str(), 0, cy);
+      sprite.drawString(text.c_str(), textW + MARQUEE_GAP, cy);
+    }
+  }
+  void frame() {
+    if (!active) {
+      sprite.pushSprite(MARQUEE_X, y);
+      return;
+    }
+    M5.Display.setClipRect(MARQUEE_X, y, MARQUEE_W, MARQUEE_H);
+    sprite.pushSprite(MARQUEE_X - offset, y);
+    M5.Display.clearClipRect();
+  }
+  void tick(uint32_t now) {
+    if (!active || now < nextStep) return;
+    nextStep = now + 50;  // 20 fps, 3 px/frame
+    offset += 3;
+    if (offset >= textW + MARQUEE_GAP) offset = 0;
+    frame();
+  }
+};
+
+Marquee g_title, g_sub;  // white now-playing title + grey subtitle, both scroll
 
 PlayerSnapshot g_snap;
 NowPlaying g_np;
@@ -77,13 +138,6 @@ constexpr int kKbCols = 10, kKbKeyW = 32, kKbKeyH = 30, kKbY0 = 116;
 
 // Metadata: resolved two-line block (white title marquee + grey subtitle).
 String g_metaSub;
-
-// Marquee state
-String g_marqueeText;
-int g_marqueeOffset = 0;
-int g_marqueeTextW = 0;
-bool g_marqueeActive = false;
-uint32_t g_marqueeNextStep = 0;
 
 // The embedded VT323 covers Latin-1 only. Keep valid ≤U+00FF sequences, map
 // common typographic/status codepoints to ASCII, drop the rest — wavezero's
@@ -166,49 +220,6 @@ String resolveMeta() {
   return title;
 }
 
-// The marquee strip is rendered ONCE per title into a wide sprite; each frame
-// only pushes a clipped scrolling window. Re-rendering text at 30 fps starved
-// the stream's TLS pump enough to drain the audio cushion (found the hard way
-// — NTS burned 98 KB of buffer in 11 s with a long title scrolling).
-constexpr int MARQUEE_GAP = 60;
-
-void setMarquee(const String& text) {
-  // Metadata is always F_MED (26 px) — scroll only when it overflows.
-  g_card.setFont(&F_MED);
-  g_card.setTextSize(1);
-  g_marqueeTextW = g_card.textWidth(text.c_str());
-  g_marqueeText = text;
-  g_marqueeOffset = 0;
-  g_marqueeActive = g_marqueeTextW > MARQUEE_W;
-
-  int stripW = g_marqueeActive ? g_marqueeTextW + MARQUEE_GAP + MARQUEE_W : MARQUEE_W;
-  g_marquee.deleteSprite();
-  g_marquee.createSprite(stripW, MARQUEE_H);
-  g_marquee.fillScreen(COL_BG);
-  g_marquee.setFont(&F_MED);
-  g_marquee.setTextSize(1);
-  g_marquee.setTextColor(COL_FG, COL_BG);
-  int cy = MARQUEE_H / 2;
-  if (!g_marqueeActive) {
-    g_marquee.setTextDatum(middle_center);
-    g_marquee.drawString(g_marqueeText.c_str(), MARQUEE_W / 2, cy);
-  } else {
-    g_marquee.setTextDatum(middle_left);
-    g_marquee.drawString(g_marqueeText.c_str(), 0, cy);
-    g_marquee.drawString(g_marqueeText.c_str(), g_marqueeTextW + MARQUEE_GAP, cy);
-  }
-}
-
-void drawMarqueeFrame() {
-  if (!g_marqueeActive) {
-    g_marquee.pushSprite(MARQUEE_X, MARQUEE_Y);
-    return;
-  }
-  M5.Display.setClipRect(MARQUEE_X, MARQUEE_Y, MARQUEE_W, MARQUEE_H);
-  g_marquee.pushSprite(MARQUEE_X - g_marqueeOffset, MARQUEE_Y);
-  M5.Display.clearClipRect();
-}
-
 void drawIconOrPlaceholder(const Station& s) {
   constexpr int SIZE = 128, X = 8, Y = 16;
   bool drawn = false;
@@ -272,24 +283,15 @@ void buildCard() {
 
   drawMeterInto(g_card);  // RSSI bars live in the card — never blink away
 
-  // Metadata line 2 (grey subtitle/artist), right under the white title
-  // marquee — the two form one now-playing block. (Marquee is line 1, pushed
-  // separately in pushCard.)
-  g_card.setFont(&F_MED);
-  g_card.setTextDatum(top_center);
-  g_card.setTextColor(COL_DIM, COL_BG);
-  if (g_snap.state == PlayerState::Playing) {
-    if (!g_metaSub.isEmpty()) {
-      String sub = g_metaSub;
-      while (g_card.textWidth(sub.c_str()) > W - 16 && sub.length() > 1)
-        sub.remove(sub.length() - 1);  // truncate (title marquee carries motion)
-      if (sub != g_metaSub) sub += "~";
-      g_card.drawString(sub.c_str(), W / 2, 190);
-    }
-  } else {
+  // Metadata area (both lines) is owned by the two scrolling marquees, pushed
+  // over the card in pushCard(). When not playing, show the state here instead.
+  if (g_snap.state != PlayerState::Playing) {
+    g_card.setFont(&F_MED);
+    g_card.setTextDatum(middle_center);
+    g_card.setTextColor(COL_DIM, COL_BG);
     String msg = player::stateName(g_snap.state);
     if (g_snap.state == PlayerState::Tuning) msg = "tuning ...";
-    g_card.drawString(msg.c_str(), W / 2, 190);
+    g_card.drawString(msg.c_str(), W / 2, MARQUEE_Y1 + MARQUEE_H / 2);
   }
 
   // Nav hints.
@@ -303,7 +305,10 @@ void buildCard() {
 
 void pushCard() {
   g_card.pushSprite(0, 0);
-  if (g_snap.state == PlayerState::Playing) drawMarqueeFrame();
+  if (g_snap.state == PlayerState::Playing) {
+    g_title.frame();
+    g_sub.frame();
+  }
 }
 
 void drawVolumeBar(uint8_t vol) {
@@ -595,9 +600,8 @@ void begin(uint8_t brightness) {
   g_card.setPsram(true);
   g_card.setColorDepth(16);
   g_card.createSprite(W, H);
-  g_marquee.setPsram(true);
-  g_marquee.setColorDepth(16);
-  g_marquee.createSprite(MARQUEE_W, MARQUEE_H);
+  g_title.begin(MARQUEE_Y1);
+  g_sub.begin(MARQUEE_Y2);
 
   auto& d = M5.Display;
   d.fillScreen(COL_BG);
@@ -638,7 +642,8 @@ void render(const PlayerSnapshot& snap, const NowPlaying& np) {
   String title = resolveMeta();  // also sets g_metaSub
   log_i("card: state=%s title='%s' subtitle='%s'", player::stateName(snap.state),
         title.c_str(), g_metaSub.c_str());
-  setMarquee(title);
+  g_title.set(title, COL_FG);
+  g_sub.set(g_metaSub, COL_DIM);
   buildCard();
   if (!g_settingsOpen && millis() >= g_overlayUntil) pushCard();
 }
@@ -836,14 +841,11 @@ void tick() {
     g_overlayUntil = 0;
     if (g_haveCard) pushCard();
   }
-  if (g_overlayUntil) return;  // overlays freeze the marquee
+  if (g_overlayUntil) return;  // overlays freeze the marquees
 
-  if (g_haveCard && g_marqueeActive && g_snap.state == PlayerState::Playing &&
-      now >= g_marqueeNextStep) {
-    g_marqueeNextStep = now + 50;  // 20 fps is plenty for text
-    g_marqueeOffset += 3;
-    if (g_marqueeOffset >= g_marqueeTextW + MARQUEE_GAP) g_marqueeOffset = 0;
-    drawMarqueeFrame();
+  if (g_haveCard && g_snap.state == PlayerState::Playing) {
+    g_title.tick(now);
+    g_sub.tick(now);
   }
 }
 
