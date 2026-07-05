@@ -19,15 +19,28 @@ constexpr int MARQUEE_X = 8, MARQUEE_Y = 150, MARQUEE_W = W - 16, MARQUEE_H = 36
 constexpr uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b) {
   return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 }
-constexpr uint16_t COL_BG = rgb565(0x0a, 0x0a, 0x0a);    // --bg
-constexpr uint16_t COL_FG = rgb565(0xe8, 0xe8, 0xe8);    // --fg
-constexpr uint16_t COL_DIM = rgb565(0x66, 0x66, 0x66);   // muted labels/hints
-constexpr uint16_t COL_LINE = rgb565(0x2a, 0x2a, 0x2a);  // borders/dividers
-// accent + accent-fg come from the station (accent-fg = COL_BG, like the web).
+constexpr uint16_t COL_BG = rgb565(0x0a, 0x0a, 0x0a);      // --bg
+constexpr uint16_t COL_FG = rgb565(0xe8, 0xe8, 0xe8);      // --fg
+constexpr uint16_t COL_DIM = rgb565(0x66, 0x66, 0x66);     // muted labels/hints
+constexpr uint16_t COL_LINE = rgb565(0x2a, 0x2a, 0x2a);    // borders/dividers
+constexpr uint16_t COL_ACCENT = rgb565(0xff, 0xf2, 0x05);  // --accent (yellow) for chrome
+constexpr uint16_t COL_PANEL = rgb565(0x16, 0x16, 0x16);   // row/panel fill
+// per-station accent (accent-fg = COL_BG, like the web) comes from color565.
 
-const lgfx::GFXfont& F_SMALL = whfonts::VT323_16;
-const lgfx::GFXfont& F_MED = whfonts::VT323_24;
-const lgfx::GFXfont& F_BIG = whfonts::VT323_32;
+const lgfx::GFXfont& F_SMALL = whfonts::VT323_20;
+const lgfx::GFXfont& F_MED = whfonts::VT323_26;   // metadata (title + subtitle)
+const lgfx::GFXfont& F_BIG = whfonts::VT323_34;   // station name
+
+// Page header: accent title + underline. Returns the y below it for content.
+int drawHeader(LovyanGFX& d, const char* title) {
+  d.setFont(&F_BIG);
+  d.setTextSize(1);
+  d.setTextDatum(top_left);
+  d.setTextColor(COL_ACCENT, COL_BG);
+  d.drawString(title, 12, 6);
+  d.drawFastHLine(12, 44, W - 24, COL_LINE);
+  return 54;
+}
 
 M5Canvas g_card(&M5.Display);     // full card, rebuilt on change, pushed whole
 M5Canvas g_marquee(&M5.Display);  // title strip, pushed only while scrolling
@@ -61,6 +74,9 @@ const char* const kKbRows[3][3] = {
     {"1234567890", "!#$%&*()+=", ":;,?/[]{}~"},  // symbols
 };
 constexpr int kKbCols = 10, kKbKeyW = 32, kKbKeyH = 30, kKbY0 = 116;
+
+// Metadata: resolved two-line block (white title marquee + grey subtitle).
+String g_metaSub;
 
 // Marquee state
 String g_marqueeText;
@@ -126,15 +142,28 @@ void drawMeterInto(LovyanGFX& g) {
   }
 }
 
-String effectiveTitle() {
-  if (!g_np.title.isEmpty()) return sanitizeForFont(g_np.title);
-  // ICY fallback — some stations send a bare " - " separator as the title.
-  String icy = sanitizeForFont(String(g_snap.streamTitle));
-  String stripped(icy);
-  stripped.replace("-", "");
-  stripped.trim();
-  if (!stripped.isEmpty()) return icy;
-  return "~ on air ~";
+// Resolve the metadata into a title (white marquee) + subtitle (grey line),
+// setting g_metaSub. Splits an "Artist - Track" ICY string across the two.
+String resolveMeta() {
+  String title = sanitizeForFont(g_np.title);
+  g_metaSub = sanitizeForFont(g_np.subtitle);
+  if (title.isEmpty()) {
+    // ICY fallback — often "Artist - Track"; a bare " - " means nothing.
+    String icy = sanitizeForFont(String(g_snap.streamTitle));
+    String stripped(icy);
+    stripped.replace("-", "");
+    stripped.trim();
+    if (stripped.isEmpty()) { g_metaSub = ""; return "~ on air ~"; }
+    title = icy;
+  }
+  if (g_metaSub.isEmpty()) {
+    int d = title.indexOf(" - ");
+    if (d > 0 && d < (int)title.length() - 3) {
+      g_metaSub = title.substring(0, d);      // artist → grey line
+      title = title.substring(d + 3);         // track → white line
+    }
+  }
+  return title;
 }
 
 // The marquee strip is rendered ONCE per title into a wide sprite; each frame
@@ -142,23 +171,12 @@ String effectiveTitle() {
 // the stream's TLS pump enough to drain the audio cushion (found the hard way
 // — NTS burned 98 KB of buffer in 11 s with a long title scrolling).
 constexpr int MARQUEE_GAP = 60;
-const lgfx::GFXfont* g_marqueeFont = &F_BIG;
 
 void setMarquee(const String& text) {
-  // Step the font down before resorting to scrolling: a long title at 24 px
-  // often fits where 32 px would have to scroll, and 16 px catches most of
-  // the rest — readable and still, less motion to chase.
-  const lgfx::GFXfont* fonts[] = {&F_BIG, &F_MED, &F_SMALL};
-  g_marqueeFont = fonts[2];
-  int textW = 0;
-  for (auto* f : fonts) {
-    g_card.setFont(f);
-    g_card.setTextSize(1);
-    textW = g_card.textWidth(text.c_str());
-    if (textW <= MARQUEE_W) { g_marqueeFont = f; break; }
-    g_marqueeFont = f;  // keep the smallest tried if none fit
-  }
-  g_marqueeTextW = textW;
+  // Metadata is always F_MED (26 px) — scroll only when it overflows.
+  g_card.setFont(&F_MED);
+  g_card.setTextSize(1);
+  g_marqueeTextW = g_card.textWidth(text.c_str());
   g_marqueeText = text;
   g_marqueeOffset = 0;
   g_marqueeActive = g_marqueeTextW > MARQUEE_W;
@@ -167,7 +185,7 @@ void setMarquee(const String& text) {
   g_marquee.deleteSprite();
   g_marquee.createSprite(stripW, MARQUEE_H);
   g_marquee.fillScreen(COL_BG);
-  g_marquee.setFont(g_marqueeFont);
+  g_marquee.setFont(&F_MED);
   g_marquee.setTextSize(1);
   g_marquee.setTextColor(COL_FG, COL_BG);
   int cy = MARQUEE_H / 2;
@@ -254,17 +272,24 @@ void buildCard() {
 
   drawMeterInto(g_card);  // RSSI bars live in the card — never blink away
 
-  // Status / subtitle zone under the marquee strip.
+  // Metadata line 2 (grey subtitle/artist), right under the white title
+  // marquee — the two form one now-playing block. (Marquee is line 1, pushed
+  // separately in pushCard.)
   g_card.setFont(&F_MED);
   g_card.setTextDatum(top_center);
   g_card.setTextColor(COL_DIM, COL_BG);
   if (g_snap.state == PlayerState::Playing) {
-    if (!g_np.subtitle.isEmpty())
-      g_card.drawString(sanitizeForFont(g_np.subtitle).c_str(), W / 2, 192);
+    if (!g_metaSub.isEmpty()) {
+      String sub = g_metaSub;
+      while (g_card.textWidth(sub.c_str()) > W - 16 && sub.length() > 1)
+        sub.remove(sub.length() - 1);  // truncate (title marquee carries motion)
+      if (sub != g_metaSub) sub += "~";
+      g_card.drawString(sub.c_str(), W / 2, 190);
+    }
   } else {
     String msg = player::stateName(g_snap.state);
     if (g_snap.state == PlayerState::Tuning) msg = "tuning ...";
-    g_card.drawString(msg.c_str(), W / 2, 192);
+    g_card.drawString(msg.c_str(), W / 2, 190);
   }
 
   // Nav hints.
@@ -333,75 +358,78 @@ void drawBottomButton(const char* label) {
   auto& d = M5.Display;
   d.setTextDatum(middle_center);
   d.setFont(&F_MED);
-  d.fillRoundRect(W / 2 - 90, 198, 180, 32, 8, COL_LINE);
-  d.setTextColor(COL_FG, COL_LINE);
-  d.drawString(label, W / 2, 214);
+  d.fillRoundRect(W / 2 - 90, 198, 180, 34, 8, COL_PANEL);
+  d.drawRoundRect(W / 2 - 90, 198, 180, 34, 8, COL_LINE);
+  d.setTextColor(COL_FG, COL_PANEL);
+  d.drawString(label, W / 2, 215);
+}
+
+// A tappable full-width row with a label and an optional right-aligned value.
+void drawRow(LovyanGFX& d, int y, const char* label, const char* value) {
+  d.fillRoundRect(12, y, W - 24, 34, 6, COL_PANEL);
+  d.setFont(&F_MED);
+  d.setTextColor(COL_FG, COL_PANEL);
+  d.setTextDatum(middle_left);
+  d.drawString(label, 24, y + 18);
+  if (value) {
+    d.setTextColor(COL_ACCENT, COL_PANEL);
+    d.setTextDatum(middle_right);
+    d.drawString(value, W - 24, y + 18);
+  }
 }
 
 void drawSettingsMain() {
   auto& d = M5.Display;
   d.startWrite();
   d.fillScreen(COL_BG);
-  d.setFont(&F_BIG);
-  d.setTextDatum(top_center);
-  d.setTextColor(COL_FG, COL_BG);
-  d.drawString("SETTINGS", W / 2, 6);
+  drawHeader(d, "settings");
 
-  d.setFont(&F_SMALL);
-  d.setTextDatum(middle_left);
-  d.setTextColor(COL_DIM, COL_BG);
-  d.drawString("brightness", 16, 62);
-  d.setTextDatum(middle_right);
-  d.setFont(&F_MED);
-  d.setTextColor(COL_FG, COL_BG);
   char buf[24];
-  snprintf(buf, sizeof(buf), "< %d%% >", g_setBright * 100 / 255);
-  d.drawString(buf, W - 16, 62);
-
-  d.setTextDatum(middle_left);
-  d.drawString("stations ...", 16, 100);
-  d.drawString("wifi ...", 16, 136);
+  snprintf(buf, sizeof(buf), "%d%%", g_setBright * 100 / 255);
+  drawRow(d, 58, "brightness", buf);
+  drawRow(d, 98, "stations", ">");
+  drawRow(d, 138, "wifi", ">");
 
   d.setFont(&F_SMALL);
   d.setTextDatum(top_left);
   d.setTextColor(COL_DIM, COL_BG);
   snprintf(buf, sizeof(buf), "fw %s (%d)", WH_FW_VERSION, WH_FW_BUILD);
   String info = String(buf) + "  c:" + catalog::contentVersion().substring(0, 8);
-  d.drawString(info.c_str(), 16, 170);
+  d.drawString(info.c_str(), 14, 178);
 
-  drawBottomButton(g_stationsChanged ? "SAVE+REBOOT" : "CLOSE");
+  drawBottomButton(g_stationsChanged ? "SAVE + REBOOT" : "CLOSE");
   d.endWrite();
 }
 
-constexpr int kMetaRows = 6, kMetaRowH = 27, kMetaY0 = 34;
+constexpr int kMetaRows = 5, kMetaRowH = 28, kMetaY0 = 56;
 
 void drawSettingsStations() {
   auto& d = M5.Display;
   d.startWrite();
   d.fillScreen(COL_BG);
-  d.setFont(&F_MED);
-  d.setTextDatum(top_center);
-  d.setTextColor(COL_FG, COL_BG);
-  d.drawString("STATIONS", W / 2, 4);
+  drawHeader(d, "stations");
 
-  d.setFont(&F_SMALL);
+  d.setFont(&F_MED);
   for (int row = 0; row < kMetaRows; ++row) {
     int i = g_metaScroll + row;
     if (i >= (int)g_metas.size()) break;
     int y = kMetaY0 + row * kMetaRowH;
-    d.drawRect(12, y, 16, 16, COL_DIM);
-    if (g_metas[i].visible) d.fillRect(15, y + 3, 10, 10, rgb565(0x2a, 0xeb, 0x62));
+    bool on = g_metas[i].visible;
+    d.fillRoundRect(12, y, W - 24, kMetaRowH - 4, 5, COL_PANEL);
+    d.drawRoundRect(20, y + 5, 16, 16, 3, on ? rgb565(0x2a, 0xeb, 0x62) : COL_LINE);
+    if (on) d.fillRoundRect(23, y + 8, 10, 10, 2, rgb565(0x2a, 0xeb, 0x62));
     d.setTextDatum(middle_left);
-    d.setTextColor(g_metas[i].visible ? COL_FG : COL_DIM, COL_BG);
-    d.drawString(g_metas[i].label.c_str(), 40, y + 8);
+    d.setTextColor(on ? COL_FG : COL_DIM, COL_PANEL);
+    d.drawString(g_metas[i].label.c_str(), 46, y + (kMetaRowH - 4) / 2);
   }
-  d.setTextDatum(middle_center);
+  d.setFont(&F_SMALL);
+  d.setTextDatum(middle_right);
   d.setTextColor(COL_DIM, COL_BG);
   char pos[24];
-  snprintf(pos, sizeof(pos), "swipe . %d-%d / %d", g_metaScroll + 1,
+  snprintf(pos, sizeof(pos), "swipe . %d/%d",
            (int)std::min<size_t>(g_metaScroll + kMetaRows, g_metas.size()),
            (int)g_metas.size());
-  d.drawString(pos, W / 2, kMetaY0 + kMetaRows * kMetaRowH + 6);
+  d.drawString(pos, W - 14, 44 - 10);
 
   drawBottomButton("BACK");
   d.endWrite();
@@ -412,24 +440,22 @@ void drawSettingsWifi() {
   auto& d = M5.Display;
   d.startWrite();
   d.fillScreen(COL_BG);
-  d.setFont(&F_MED);
-  d.setTextDatum(top_center);
-  d.setTextColor(COL_FG, COL_BG);
-  d.drawString("WIFI", W / 2, 4);
+  drawHeader(d, "wifi");
 
   d.setFont(&F_SMALL);
   d.setTextDatum(top_left);
   bool up = WiFi.status() == WL_CONNECTED;
   d.setTextColor(up ? COL_FG : COL_DIM, COL_BG);
-  d.drawString(("ssid: " + (up ? WiFi.SSID() : String("(offline)"))).c_str(), 16, 44);
-  d.drawString(("ip:   " + WiFi.localIP().toString()).c_str(), 16, 66);
-  d.drawString(("rssi: " + String(WiFi.RSSI()) + " dBm").c_str(), 16, 88);
+  d.drawString(("ssid: " + (up ? WiFi.SSID() : String("(offline)"))).c_str(), 16, 60);
+  d.drawString(("ip:   " + WiFi.localIP().toString()).c_str(), 16, 82);
+  d.drawString(("rssi: " + String(WiFi.RSSI()) + " dBm").c_str(), 16, 104);
 
   d.setFont(&F_MED);
   d.setTextDatum(middle_center);
-  d.fillRoundRect(W / 2 - 100, 120, 200, 40, 8, COL_LINE);
-  d.setTextColor(COL_FG, COL_LINE);
-  d.drawString("scan networks", W / 2, 140);
+  d.fillRoundRect(W / 2 - 100, 128, 200, 42, 8, COL_PANEL);
+  d.drawRoundRect(W / 2 - 100, 128, 200, 42, 8, COL_ACCENT);
+  d.setTextColor(COL_ACCENT, COL_PANEL);
+  d.drawString("scan networks", W / 2, 149);
 
   drawBottomButton("BACK");
   d.endWrite();
@@ -440,32 +466,35 @@ void drawSettingsWifiScan() {
   auto& d = M5.Display;
   d.startWrite();
   d.fillScreen(COL_BG);
-  d.setFont(&F_MED);
-  d.setTextDatum(top_center);
-  d.setTextColor(COL_FG, COL_BG);
-  d.drawString("NETWORKS", W / 2, 4);
+  drawHeader(d, "networks");
 
-  d.setFont(&F_SMALL);
-  d.setTextDatum(middle_left);
   if (g_ssids.empty()) {
+    d.setFont(&F_MED);
+    d.setTextDatum(middle_center);
     d.setTextColor(COL_DIM, COL_BG);
-    d.drawString("no networks found", 16, 100);
+    d.drawString("no networks found", W / 2, 120);
   }
+  d.setFont(&F_MED);
   for (int row = 0; row < kMetaRows; ++row) {
     int i = g_ssidScroll + row;
     if (i >= (int)g_ssids.size()) break;
     int y = kMetaY0 + row * kMetaRowH;
-    d.setTextColor(COL_FG, COL_BG);
-    d.drawString(g_ssids[i].c_str(), 16, y + 8);
+    d.fillRoundRect(12, y, W - 24, kMetaRowH - 4, 5, COL_PANEL);
+    d.setTextDatum(middle_left);
+    d.setTextColor(COL_FG, COL_PANEL);
+    String s = g_ssids[i];
+    while (d.textWidth(s.c_str()) > W - 56 && s.length() > 1) s.remove(s.length() - 1);
+    d.drawString(s.c_str(), 24, y + (kMetaRowH - 4) / 2);
   }
-  d.setTextDatum(middle_center);
-  d.setTextColor(COL_DIM, COL_BG);
   if (!g_ssids.empty()) {
+    d.setFont(&F_SMALL);
+    d.setTextDatum(middle_right);
+    d.setTextColor(COL_DIM, COL_BG);
     char pos[24];
-    snprintf(pos, sizeof(pos), "swipe . %d / %d",
+    snprintf(pos, sizeof(pos), "swipe . %d/%d",
              (int)std::min<size_t>(g_ssidScroll + kMetaRows, g_ssids.size()),
              (int)g_ssids.size());
-    d.drawString(pos, W / 2, kMetaY0 + kMetaRows * kMetaRowH + 6);
+    d.drawString(pos, W - 14, 34);
   }
   drawBottomButton("BACK");
   d.endWrite();
@@ -570,12 +599,25 @@ void begin(uint8_t brightness) {
   g_marquee.setColorDepth(16);
   g_marquee.createSprite(MARQUEE_W, MARQUEE_H);
 
-  M5.Display.fillScreen(COL_BG);
-  M5.Display.setFont(&F_SMALL);
-  M5.Display.setTextSize(1);
-  M5.Display.setTextColor(COL_FG, COL_BG);
-  M5.Display.setCursor(0, 0);
-  M5.Display.setTextScroll(true);
+  auto& d = M5.Display;
+  d.fillScreen(COL_BG);
+  // Fixed splash header; boot status scrolls in the region below it.
+  d.setFont(&F_BIG);
+  d.setTextDatum(top_center);
+  d.setTextColor(COL_ACCENT, COL_BG);
+  d.drawString("WaveHopper", W / 2, 20);
+  d.setFont(&F_SMALL);
+  d.setTextColor(COL_DIM, COL_BG);
+  d.drawString("~ webradio ~", W / 2, 58);
+  d.drawFastHLine(20, 82, W - 40, COL_LINE);
+
+  d.setFont(&F_SMALL);
+  d.setTextSize(1);
+  d.setTextColor(COL_FG, COL_BG);
+  d.setTextDatum(top_left);
+  d.setCursor(14, 92);
+  d.setTextScroll(true);
+  d.setScrollRect(0, 90, W, H - 90);  // keep the header out of the scroll region
 }
 
 void bootLine(const char* fmt, ...) {
@@ -585,6 +627,7 @@ void bootLine(const char* fmt, ...) {
   vsnprintf(buf, sizeof(buf), fmt, args);
   va_end(args);
   Serial.println(buf);
+  M5.Display.setTextDatum(top_left);
   M5.Display.println(buf);
 }
 
@@ -592,9 +635,10 @@ void render(const PlayerSnapshot& snap, const NowPlaying& np) {
   g_snap = snap;
   g_np = np;
   g_haveCard = true;
+  String title = resolveMeta();  // also sets g_metaSub
   log_i("card: state=%s title='%s' subtitle='%s'", player::stateName(snap.state),
-        effectiveTitle().c_str(), np.subtitle.c_str());
-  setMarquee(effectiveTitle());
+        title.c_str(), g_metaSub.c_str());
+  setMarquee(title);
   buildCard();
   if (!g_settingsOpen && millis() >= g_overlayUntil) pushCard();
 }
@@ -648,7 +692,7 @@ SettingsAction settingsTouch(int x, int y) {
       return SettingsAction::None;
 
     case SettingsPage::Wifi:
-      if (y >= 120 && y <= 160 && x > W / 2 - 100 && x < W / 2 + 100) {
+      if (y >= 128 && y <= 170 && x > W / 2 - 100 && x < W / 2 + 100) {
         doWifiScan();
         g_page = SettingsPage::WifiScan;
         drawSettings();
@@ -717,19 +761,19 @@ SettingsAction settingsTouch(int x, int y) {
         if (!g_stationsChanged && g_haveCard) pushCard();
         return g_stationsChanged ? SettingsAction::CloseAndReboot : SettingsAction::Close;
       }
-      if (y > 46 && y < 82) {  // brightness cycle, applied live
+      if (y >= 58 && y < 92) {  // brightness row — cycle, applied live
         static const uint8_t levels[] = {60, 120, 200, 255};
         size_t i = 0;
         while (i < 3 && levels[i] <= g_setBright) ++i;
         g_setBright = levels[g_setBright >= 255 ? 0 : i];
         M5.Display.setBrightness(g_setBright);
         drawSettings();
-      } else if (y >= 84 && y < 118) {  // stations page
+      } else if (y >= 98 && y < 132) {  // stations row
         g_metas = catalog::allMeta();
         g_metaScroll = 0;
         g_page = SettingsPage::Stations;
         drawSettings();
-      } else if (y >= 120 && y < 154) {  // wifi page
+      } else if (y >= 138 && y < 172) {  // wifi row
         g_page = SettingsPage::Wifi;
         drawSettings();
       }

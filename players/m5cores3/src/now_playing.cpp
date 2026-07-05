@@ -2,6 +2,8 @@
 
 #include <ArduinoJson.h>
 
+#include <atomic>
+
 #include "catalog.h"
 #include "config.h"
 #include "net.h"
@@ -32,9 +34,11 @@ void publish(const String& title, const String& subtitle) {
   if (changed && !title.isEmpty()) log_i("now-playing: %s — %s", title.c_str(), subtitle.c_str());
 }
 
+std::atomic<bool> g_pollLanded{false};  // worker → tick: got a definitive answer
+
 void poll(const Station& s) {
   String path = String(WH_NOW_PLAYING_PATH) + s.id;
-  if (!net::whBegin(path)) return;
+  if (!net::whBegin(path)) return;  // heap-guarded skip — tick retries soon
 
   int code = net::http().GET();
   if (code < 0) {
@@ -43,6 +47,7 @@ void poll(const Station& s) {
     if (!net::whBegin(path)) return;
     code = net::http().GET();
   }
+  if (code == 200 || code == 204) g_pollLanded = true;
   if (code == 200) {
     // getString() — the API responds chunked over HTTP/1.1 and getStream()
     // would hand the raw chunk framing to the parser. Payload is ~250 B.
@@ -92,6 +97,7 @@ void tick(bool playing, int stationIndex, bool stationChanged) {
   uint32_t now = millis();
   if (stationChanged) {
     publish("", "");
+    g_pollLanded = false;
     g_lastStation = stationIndex;
     // Small grace period: polling the instant playback starts stacks this
     // TLS handshake on top of boot sync / stream connect heap usage (seen
@@ -101,7 +107,10 @@ void tick(bool playing, int stationIndex, bool stationChanged) {
   if (!playing || stationIndex < 0) return;
   if (now < g_nextPollAt) return;
 
-  g_nextPollAt = now + WH_NP_POLL_MS;
+  // A skipped/failed poll (heap guard during HLS, transient error) never set
+  // g_pollLanded — retry in a few seconds instead of waiting a full interval,
+  // so metadata still appears once heap frees up. Steady interval after it lands.
+  g_nextPollAt = now + (g_pollLanded ? WH_NP_POLL_MS : 5000);
   if (!catalog::at(stationIndex).pollable) {
     publish("", "");
     return;

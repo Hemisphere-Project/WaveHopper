@@ -165,50 +165,44 @@ void loop() {
 
   PlayerSnapshot snap = player::snapshot();
 
-  // Station browsing: taps/flicks move a *display* selection through the
-  // toast; the actual tune fires only once the selection settles — rapid
-  // next-next-next never queues blocking connects.
-  static int browseIdx = -1;
+  // Station controls, split by gesture:
+  //  - tap (either half) or horizontal flick → change station INSTANTLY, no list.
+  //  - vertical drag → browse the toast list; the tune commits when you settle.
+  static int browseIdx = -1;         // >=0 only during a vertical-drag browse
   static uint32_t browseCommitAt = 0;
+  static int dragBaseIdx = -1;
+  static bool dragging = false;
   int n = (int)catalog::count();
-  int step = 0;
-  if (t.y < 240) {
+
+  if (t.isPressed() && t.y < 240 && n && !dragging && abs(t.distanceY()) > 32 &&
+      abs(t.distanceY()) > abs(t.distanceX())) {
+    dragging = true;  // vertical drag started → enter browse mode
+    dragBaseIdx = snap.stationIndex < 0 ? 0 : snap.stationIndex;
+    browseIdx = dragBaseIdx;
+  }
+  if (dragging) {
+    if (t.isPressed()) {
+      int idx = ((dragBaseIdx - t.distanceY() / 48) % n + n) % n;
+      if (idx != browseIdx) { browseIdx = idx; ui::stationToast(browseIdx); }
+      browseCommitAt = millis() + 600;
+    } else {
+      dragging = false;  // released — browseCommitAt below fires the tune
+    }
+  } else if (n) {
+    // Not a drag: instant prev/next on tap half or horizontal flick.
+    int step = 0;
     if (t.wasFlicked() && abs(t.distanceX()) > 30 &&
         abs(t.distanceX()) > abs(t.distanceY())) {
       step = t.distanceX() < 0 ? 1 : -1;
     } else if (t.wasClicked()) {
       step = t.x < 160 ? -1 : 1;
     }
-  }
-  if (step && n) {
-    if (browseIdx < 0) browseIdx = snap.stationIndex < 0 ? 0 : snap.stationIndex;
-    browseIdx = (browseIdx + step + n) % n;
-    browseCommitAt = millis() + 600;
-    ui::stationToast(browseIdx);
-  }
-  // Vertical drag scrolls the selection continuously (~48 px per station);
-  // drag down moves up the list, like scrolling content.
-  static int dragBaseIdx = -1;
-  static bool dragging = false;
-  if (t.isPressed() && t.y < 240 && n) {
-    int dy = t.distanceY();
-    if (!dragging && abs(dy) > 32 && abs(dy) > abs(t.distanceX()) * 2) {
-      dragging = true;
-      dragBaseIdx = browseIdx >= 0 ? browseIdx
-                                   : (snap.stationIndex < 0 ? 0 : snap.stationIndex);
+    if (step != 0) {
+      int cur = snap.stationIndex < 0 ? 0 : snap.stationIndex;
+      player::tuneTo(((cur + step) % n + n) % n);
     }
-    if (dragging) {
-      int idx = ((dragBaseIdx - dy / 48) % n + n) % n;
-      if (idx != browseIdx) {
-        browseIdx = idx;
-        ui::stationToast(browseIdx);
-      }
-      browseCommitAt = millis() + 600;
-    }
-  } else if (dragging) {
-    dragging = false;
   }
-  if (browseIdx >= 0 && millis() > browseCommitAt) {
+  if (browseIdx >= 0 && !dragging && millis() > browseCommitAt) {
     player::tuneTo(browseIdx);
     browseIdx = -1;
   }
