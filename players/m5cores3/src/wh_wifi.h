@@ -5,8 +5,13 @@
 
 namespace whwifi {
 // Resolve credentials (NVS wins, else compiled-in secrets.h → stored to NVS)
-// and connect. Blocks up to timeoutMs. Returns true when connected.
-bool connect(WhSettings& s, uint32_t timeoutMs);
+// and kick off association. Non-blocking — the stack keeps retrying on its
+// own; poll isConnected(). Returns false when no usable credentials exist.
+bool beginConnect(WhSettings& s);
+
+// Call once when the link comes up: re-asserts modem-sleep-off (power save
+// chokes stream-bitrate TCP) and logs rssi/ip.
+void onLink(const WhSettings& s);
 
 // SNTP sync; blocks until the clock is sane or timeoutMs. Returns success.
 bool syncClock(uint32_t timeoutMs);

@@ -49,13 +49,15 @@ bool clockValid() { return g_clockValid; }
 bool whBegin(const String& path) {
 #ifndef WH_DEV_INSECURE_HOST
   if (!g_clockValid) return false;  // cert validation would fail pre-SNTP
-  // A TLS handshake needs ~40-50 KB. During HLS playback (the stream holds its
-  // own TLS) free internal heap can dip near that; starting a second handshake
-  // then risks an allocation-failure crash. Skip this poll/post — sessions and
-  // metadata both tolerate a dropped sample.
-  if (ESP.getFreeHeap() < 45000) {
-    log_w("net: skipping %s, low heap (%lu)", path.c_str(),
-          (unsigned long)ESP.getFreeHeap());
+  // A verified TLS handshake peaks ~50 KB of internal heap with ~17 KB
+  // contiguous record buffers. Measured on-device: 61 KB free still fails
+  // (-32512 alloc) while an HTTPS stream pins its own ~50 KB session. Below
+  // these floors the handshake cannot succeed — skip the poll/post cleanly
+  // instead of churning mbedtls (fragmentation + crash risk). Sessions and
+  // metadata tolerate dropped samples; ICY stream titles still flow.
+  if (ESP.getFreeHeap() < 64000 || ESP.getMaxAllocHeap() < 20000) {
+    log_w("net: skipping %s, low heap (%lu free, %lu max block)", path.c_str(),
+          (unsigned long)ESP.getFreeHeap(), (unsigned long)ESP.getMaxAllocHeap());
     return false;
   }
 #endif

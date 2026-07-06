@@ -129,6 +129,32 @@ bool init(AudioProfile p, uint32_t initialSampleRate) {
       g_moduleAudio.setSpeakerOutput(DAC_OUTPUT_OUT1);  // TRRS headphone out
       g_moduleAudio.setSampleRate(SAMPLE_RATE_48K);     // matches pinned I2S clock
       g_moduleAudio.setSpeakerVolume(80);  // codec level; soft volume in audioI2S
+      // The lib's codec init leaves a mic monitor path wide open: output
+      // mixers at 0xd0 (= DAC + mic/line amp mixed in — its own comment says
+      // 0x90 is DAC-only) with micbias powered and the PGA at 24 dB
+      // (ADCPOWER 0x00, ADCCONTROL1 0x88). On a TRRS headset the biased,
+      // amplified mic feeds the headphones = constant background noise. This
+      // radio never records: DAC-only mixers, whole ADC/micbias path off.
+      {
+        auto es8388Write = [](uint8_t reg, uint8_t val) {
+          Wire.beginTransmission(0x10);  // ES8388 (lib writes it the same way)
+          Wire.write(reg);
+          Wire.write(val);
+          Wire.endTransmission();
+        };
+        es8388Write(0x27, 0x90);  // DACCONTROL17: left mixer = DAC only
+        es8388Write(0x2A, 0x90);  // DACCONTROL20: right mixer = DAC only
+        es8388Write(0x03, 0xFF);  // ADCPOWER: ADC + PGA + micbias all down
+      }
+      // Wire (I2C0) and M5.In_I2C (I2C1) are two separate ESP32 I2C
+      // peripherals wired to the SAME physical pins (12/11). Wire.begin()
+      // above re-muxed those GPIOs onto I2C0, which silently detaches I2C1 —
+      // left attached, it corrupts every later In_I2C transaction (the touch
+      // controller runs on In_I2C and starts reading garbage coordinates).
+      // The codec needs Wire only for this one-shot register setup — release
+      // it and re-claim the pins for In_I2C now, before the UI loop starts.
+      Wire.end();
+      M5.In_I2C.begin(I2C_NUM_1, 12, 11);
       log_i("Module Audio (ES8388) initialized");
       return true;
     }

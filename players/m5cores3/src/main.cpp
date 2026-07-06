@@ -9,6 +9,7 @@
 #include <M5Unified.h>
 #include <LittleFS.h>
 #include <WiFi.h>
+#include <esp_system.h>
 
 #include "config.h"
 #include "wh_nvs.h"
@@ -29,6 +30,49 @@ static uint32_t lastRenderedGen = 0;
 static uint32_t lastNpGen = 0;
 static int lastStationIndex = -1;
 
+// Modal settings pump: drag-scroll + tap routing. Shared by loop() and the
+// boot wifi wait — the wifi scan/join flow must be reachable BEFORE the first
+// connect, or a device moved to a new place can never be given its network.
+static void settingsPump() {
+  auto st = M5.Touch.getDetail();
+  // Vertical drag scrolls list pages (stations / wifi scan), ~40 px/entry.
+  static int dragBase = 0;
+  static bool sDragging = false;
+  if (st.isPressed()) {
+    if (!sDragging && abs(st.distanceY()) > 28 &&
+        abs(st.distanceY()) > abs(st.distanceX())) {
+      sDragging = true;
+      dragBase = 0;
+    }
+    if (sDragging) {
+      int rows = (st.distanceY() - dragBase) / 40;
+      if (rows && ui::settingsScroll(rows)) dragBase += rows * 40;
+    }
+  } else if (sDragging) {
+    sDragging = false;
+  } else if (st.wasClicked()) {
+    ui::SettingsAction action = ui::settingsTouch(st.x, st.y);
+    if (action == ui::SettingsAction::ConnectWifi) {
+      String ssid = ui::settingsWifiSsid(), pw = ui::settingsWifiPassword();
+      bool ok = whwifi::joinNew(ssid, pw, 12000);
+      if (ok) {
+        whnvs::saveWifi(ssid, pw);
+        ESP.restart();  // clean bring-up on the new network via the boot path
+      } else {
+        whwifi::beginConnect(settings);  // re-kick the stored network
+        ui::settingsWifiResult(false);
+      }
+    } else if (action != ui::SettingsAction::None) {
+      settings.brightness = ui::settingsBrightness();
+      whnvs::saveBrightness(settings.brightness);
+      if (action == ui::SettingsAction::CloseAndReboot) ESP.restart();
+      // The wifi scan drops an in-progress association to get a clean scan —
+      // make sure the stored network is trying again once settings closes.
+      if (!whwifi::isConnected()) whwifi::beginConnect(settings);
+    }
+  }
+}
+
 void setup() {
   Serial.begin(115200);  // HWCDC: Serial.print* needs this, log_* doesn't
   auto cfg = M5.config();
@@ -38,7 +82,18 @@ void setup() {
 
   whnvs::load(settings);
   ui::begin(settings.brightness);
-  ui::bootLine("WaveHopper  fw %s (build %d)", WH_FW_VERSION, WH_FW_BUILD);
+  ui::bootLine("Waverz\xC2\xB7net  fw %s (build %d)", WH_FW_VERSION, WH_FW_BUILD);
+
+  // Field crash reports arrive as "it rebooted" — name the culprit on the
+  // next boot (panic = code bug, brownout = power, wdt = a starved task).
+  esp_reset_reason_t rr = esp_reset_reason();
+  const char* crash = rr == ESP_RST_PANIC      ? "panic"
+                      : rr == ESP_RST_INT_WDT  ? "int-wdt"
+                      : rr == ESP_RST_TASK_WDT ? "task-wdt"
+                      : rr == ESP_RST_WDT      ? "wdt"
+                      : rr == ESP_RST_BROWNOUT ? "brownout"
+                                               : nullptr;
+  if (crash) ui::bootLine("! prev boot crashed: %s", crash);
 
   // Partition is labeled "littlefs" (esp_littlefs defaults to "spiffs").
   if (!LittleFS.begin(true, "/littlefs", 10, "littlefs")) {
@@ -47,10 +102,36 @@ void setup() {
   content_sync::wipeStagingOnBoot();
 
   ui::bootLine("wifi: connecting ...");
-  while (!whwifi::connect(settings, WH_WIFI_TIMEOUT_MS)) {
-    ui::bootLine("wifi failed - retrying (check secrets.h?)");
-    delay(5000);
+  bool haveCreds = whwifi::beginConnect(settings);
+  if (!haveCreds) ui::bootLine("no wifi saved - tap gear to set up");
+  // Wait for the link, but stay interactive: retry forever AND keep the
+  // settings overlay (hold the screen / BtnB) reachable so a new network can
+  // be joined right here. The stack auto-retries the association by itself
+  // (re-calling begin() mid-attempt is rejected with ESP_ERR_WIFI_STATE);
+  // settingsPump re-kicks it after the two things that stop it (a scan, a
+  // failed join). The periodic line is progress feedback only.
+  uint32_t retryAt = millis() + WH_WIFI_TIMEOUT_MS;
+  while (!whwifi::isConnected() || ui::settingsOpen()) {
+    M5.update();
+    auto t = M5.Touch.getDetail();
+    if (ui::settingsOpen()) {
+      settingsPump();
+      if (!ui::settingsOpen()) {  // closed without joining — boot screen back
+        ui::bootScreen();
+        ui::bootLine(haveCreds ? "wifi: connecting ..."
+                               : "no wifi saved - tap gear to set up");
+        retryAt = millis() + WH_WIFI_TIMEOUT_MS;
+      }
+    } else if (M5.BtnB.pressedFor(600) || (t.wasHold() && t.y < 240) ||
+               (t.wasClicked() && ui::bootGearHit(t.x, t.y))) {
+      ui::settingsShow(settings.audioOut, settings.brightness);
+    } else if (haveCreds && millis() > retryAt) {
+      retryAt = millis() + WH_WIFI_TIMEOUT_MS;
+      ui::bootLine("wifi: retrying %s ...", settings.ssid.c_str());
+    }
+    vTaskDelay(pdMS_TO_TICKS(5));
   }
+  whwifi::onLink(settings);
   ui::bootLine("wifi: %s ok", settings.ssid.c_str());
 
   ui::bootLine("clock: syncing ...");
@@ -93,40 +174,7 @@ void loop() {
 
   // Settings overlay: modal — BtnB hold opens, taps route to it.
   if (ui::settingsOpen()) {
-    auto st = M5.Touch.getDetail();
-    // Vertical drag scrolls list pages (stations / wifi scan), ~40 px/entry.
-    static int dragBase = 0;
-    static bool sDragging = false;
-    if (st.isPressed()) {
-      if (!sDragging && abs(st.distanceY()) > 28 &&
-          abs(st.distanceY()) > abs(st.distanceX())) {
-        sDragging = true;
-        dragBase = 0;
-      }
-      if (sDragging) {
-        int rows = (st.distanceY() - dragBase) / 40;
-        if (rows && ui::settingsScroll(rows)) dragBase += rows * 40;
-      }
-    } else if (sDragging) {
-      sDragging = false;
-    } else if (st.wasClicked()) {
-      ui::SettingsAction action = ui::settingsTouch(st.x, st.y);
-      if (action == ui::SettingsAction::ConnectWifi) {
-        String ssid = ui::settingsWifiSsid(), pw = ui::settingsWifiPassword();
-        bool ok = whwifi::joinNew(ssid, pw, 12000);
-        if (ok) {
-          whnvs::saveWifi(ssid, pw);
-          ESP.restart();  // clean bring-up on the new network via the boot path
-        } else {
-          whwifi::connect(settings, WH_WIFI_TIMEOUT_MS);  // restore old link
-          ui::settingsWifiResult(false);
-        }
-      } else if (action != ui::SettingsAction::None) {
-        settings.brightness = ui::settingsBrightness();
-        whnvs::saveBrightness(settings.brightness);
-        if (action == ui::SettingsAction::CloseAndReboot) ESP.restart();
-      }
-    }
+    settingsPump();
     vTaskDelay(pdMS_TO_TICKS(5));
     return;
   }
@@ -189,12 +237,14 @@ void loop() {
       dragging = false;  // released — browseCommitAt below fires the tune
     }
   } else if (n) {
-    // Not a drag: instant prev/next on tap half or horizontal flick.
+    // Not a drag: instant prev/next on tap half or horizontal flick. y < 240
+    // keeps the bezel button strip (BtnA/B/C live at y >= 240) out of it —
+    // without the guard every volume press also registered as a tap here.
     int step = 0;
-    if (t.wasFlicked() && abs(t.distanceX()) > 30 &&
+    if (t.wasFlicked() && t.y < 240 && abs(t.distanceX()) > 30 &&
         abs(t.distanceX()) > abs(t.distanceY())) {
       step = t.distanceX() < 0 ? 1 : -1;
-    } else if (t.wasClicked()) {
+    } else if (t.wasClicked() && t.y < 240) {
       step = t.x < 160 ? -1 : 1;
     }
     if (step != 0) {

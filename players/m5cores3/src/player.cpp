@@ -357,11 +357,12 @@ void tick() {
           float arrivKBs = consKBs + ((int32_t)bufNow - (int32_t)lastBuf) / dt / 1000.0f;
           lastStat = now;
           log_i("[buf] now=%lu min=%lu target=%lu cons=%.1fKB/s arriv=%.1fKB/s "
-                "rssi=%d sleep=%d heap=%lu",
+                "rssi=%d sleep=%d heap=%lu maxblk=%lu",
                 (unsigned long)bufNow, (unsigned long)minBuf,
                 (unsigned long)(g_targets.empty() ? 0 : g_targets[g_current]),
                 consKBs, arrivKBs, WiFi.RSSI(), (int)WiFi.getSleep(),
-                (unsigned long)ESP.getFreeHeap());
+                (unsigned long)ESP.getFreeHeap(),
+                (unsigned long)ESP.getMaxAllocHeap());
           minBuf = UINT32_MAX;
           lastBuf = bufNow;
         }

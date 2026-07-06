@@ -10,6 +10,13 @@
 namespace ui {
 void begin(uint8_t brightness);
 
+// (Re)draw the boot splash + status scroll region. begin() draws it once;
+// main re-calls it when the settings overlay closes during the boot wifi wait.
+void bootScreen();
+
+// True when (x,y) lands on the boot header's settings gear (top-right).
+bool bootGearHit(int x, int y);
+
 // Boot status screen (scrolling text lines while the sequencer runs).
 void bootLine(const char* fmt, ...);
 

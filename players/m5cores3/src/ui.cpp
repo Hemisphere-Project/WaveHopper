@@ -556,6 +556,25 @@ void drawKeyboard() {
   d.endWrite();
 }
 
+// Full-screen "joining" notice: the join attempt blocks the UI task for up
+// to ~12 s — without this the keyboard looks frozen after OK.
+void drawWifiConnecting() {
+  auto& d = M5.Display;
+  d.startWrite();
+  d.fillScreen(COL_BG);
+  drawHeader(d, "wifi");
+  d.setFont(&F_MED);
+  d.setTextDatum(middle_center);
+  d.setTextColor(COL_FG, COL_BG);
+  String ssid = g_selSSID;
+  if (ssid.length() > 20) ssid = ssid.substring(0, 19) + "~";
+  d.drawString(("joining " + ssid + " ...").c_str(), W / 2, 110);
+  d.setFont(&F_SMALL);
+  d.setTextColor(COL_DIM, COL_BG);
+  d.drawString("takes a few seconds", W / 2, 140);
+  d.endWrite();
+}
+
 void drawSettings() {
   switch (g_page) {
     case SettingsPage::Stations:     drawSettingsStations(); break;
@@ -576,6 +595,14 @@ void doWifiScan() {
   d.drawString("scanning ...", W / 2, H / 2);
   d.endWrite();
 
+  // The radio rejects scan starts while an association attempt is in flight
+  // (the offline-boot case: the stack cycles connect retries continuously).
+  // Only when offline: drop the attempt for a clean scan — settingsPump
+  // re-kicks the stored network when settings closes or a join fails.
+  if (WiFi.status() != WL_CONNECTED) {
+    WiFi.disconnect();
+    delay(100);
+  }
   int n = WiFi.scanNetworks();  // blocks ~2-4 s; briefly perturbs playback
   g_ssids.clear();
   for (int i = 0; i < n; ++i) {
@@ -603,16 +630,29 @@ void begin(uint8_t brightness) {
   g_title.begin(MARQUEE_Y1);
   g_sub.begin(MARQUEE_Y2);
 
+  bootScreen();
+}
+
+// Settings gear in the boot header (top-right): tap target for the boot wifi
+// wait — no glyph for it in the embedded font, so it's drawn (8 tooth nubs
+// around a body circle, punched hub).
+constexpr int kGearCX = W - 26, kGearCY = 30, kGearR = 9;
+
+void bootScreen() {
   auto& d = M5.Display;
   d.fillScreen(COL_BG);
   // Fixed splash header; boot status scrolls in the region below it.
   d.setFont(&F_BIG);
   d.setTextDatum(top_center);
   d.setTextColor(COL_ACCENT, COL_BG);
-  d.drawString("WaveHopper", W / 2, 20);
-  d.setFont(&F_SMALL);
-  d.setTextColor(COL_DIM, COL_BG);
-  d.drawString("~ webradio ~", W / 2, 58);
+  d.drawString("Waverz\xC2\xB7net", W / 2, 20);
+  for (int i = 0; i < 8; ++i) {
+    float a = i * (float)PI / 4;
+    d.fillCircle(kGearCX + lroundf(cosf(a) * kGearR),
+                 kGearCY + lroundf(sinf(a) * kGearR), 2, COL_DIM);
+  }
+  d.fillCircle(kGearCX, kGearCY, kGearR - 1, COL_DIM);
+  d.fillCircle(kGearCX, kGearCY, 3, COL_BG);
   d.drawFastHLine(20, 82, W - 40, COL_LINE);
 
   d.setFont(&F_SMALL);
@@ -622,6 +662,11 @@ void begin(uint8_t brightness) {
   d.setCursor(14, 92);
   d.setTextScroll(true);
   d.setScrollRect(0, 90, W, H - 90);  // keep the header out of the scroll region
+}
+
+bool bootGearHit(int x, int y) {
+  // Generous corner target around the drawn gear.
+  return x >= kGearCX - 22 && y <= kGearCY + 22;
 }
 
 void bootLine(const char* fmt, ...) {
@@ -747,6 +792,7 @@ SettingsAction settingsTouch(int x, int y) {
         } else if (x < 250) {  // del
           if (g_pw.length()) g_pw.remove(g_pw.length() - 1);
         } else {  // OK → hand credentials to main for verify+save
+          drawWifiConnecting();
           return SettingsAction::ConnectWifi;
         }
         drawSettings();
