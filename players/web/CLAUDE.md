@@ -38,13 +38,15 @@ python3 tools/build.py                       # after any content/ change
 php -S 127.0.0.1:3000 -t players/web/public  # from the repo root
 ```
 
-The PHP built-in server runs `api/*.php` the same way nginx+FPM does in prod.
-`api/cache/` must be writable. Deploy = rsync `players/web/public/` to the
-docroot (details in README.md §Deploy).
+The PHP built-in server runs `api/*.php` the same way the production host's
+PHP does. `api/cache/` must be writable. Deploy = push to `main`; a GitHub
+webhook mirrors `players/web/public/` into the docroot in pure PHP (the host
+disables exec) — details in README.md §Deploy.
 
 ## Server config
 
-`public/.htaccess` carries the Apache rules (https redirect, MIME types,
-cache policy — including `must-revalidate` for `/content/**/manifest.json`
-and `application/octet-stream` for `.bin`). The production nginx config must
-mirror any change made there, and vice versa.
+`public/.htaccess` carries the rules (https redirect, MIME types, cache policy
+— including `must-revalidate` for `/content/**/manifest.json` and
+`application/octet-stream` for `.bin`) for the production host (Infomaniak,
+Apache/LiteSpeed). It is the single source for server config; there is no
+separate nginx config to keep in sync.

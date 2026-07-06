@@ -210,8 +210,9 @@ Body (JSON, ≤1 KB):
 - Firmware `.bin`: served as `application/octet-stream`; versioned filenames
   make caching harmless.
 
-Configured in `players/web/public/.htaccess` (Apache) — mirror any change in
-the nginx config on the production host.
+Configured in `players/web/public/.htaccess` (production host is Infomaniak,
+Apache/LiteSpeed) — that file is the single source; there is no separate
+server-side config to keep in sync.
 
 ## Firmware release runbook (m5cores3)
 

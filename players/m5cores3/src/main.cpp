@@ -1,10 +1,11 @@
 // WaveHopper CoreS3 firmware — boot sequencer + input/UI loop.
 //
-// Boot: display → FS → NVS → wifi → catalog → audio profile → player task →
-// auto-play. Content sync + firmware OTA slot in before catalog load (M3).
-// Playback policy: no play/pause — the supervisor keeps something playing
-// (retry once → skip → sweep). Controls: tap left/right = prev/next station,
-// bezel BtnA/BtnC = volume down/up. Settings overlay lands in M4.
+// Boot: display → FS → NVS → wifi (retries forever, interactive) → catalog →
+// audio profile → player task → auto-play. Content sync + firmware OTA slot in
+// before catalog load. Playback policy: no play/pause — the supervisor keeps
+// something playing (retry once → skip → sweep). Controls: tap left/right =
+// prev/next station, bezel BtnA/BtnC = volume down/up; touch-hold the card or
+// hold BtnB (or tap the boot-screen gear) opens the modal settings overlay.
 
 #include <M5Unified.h>
 #include <LittleFS.h>

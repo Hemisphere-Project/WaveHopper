@@ -4,7 +4,8 @@ Webradio firmware for the [M5Stack CoreS3 / CoreS3 SE](https://docs.m5stack.com/
 (ESP32-S3, 16 MB flash, 8 MB PSRAM, 320×240 capacitive touch, AW88298 speaker amp).
 
 The device is a self-updating client of the authoritative web deploy at
-`https://waverz.net`:
+`https://waverz.net` (and shows **Waverz·net** on its boot screen — "WaveHopper"
+is the repo/project name):
 
 - **Content** (station catalog + icons) syncs from `/content/m5cores3/` — see
   [docs/CONTENT-API.md](../../docs/CONTENT-API.md) for the manifest schema and
@@ -25,16 +26,24 @@ content and checks OTA at boot, polls now-playing while playing.
 |---|---|
 | Tap left / right half of screen | previous / next station |
 | Horizontal flick | next (left) / previous (right) |
+| Vertical drag | browse the station list; tunes when you settle |
 | Bezel touch-buttons A / C (below screen) | volume down / up |
-| Bezel button B, hold ~1 s | settings overlay (audio output, brightness, versions) |
+| Touch-hold the card ~0.5 s, or hold bezel button B | open settings overlay |
 
-**Audio outputs** (settings → audio out; `auto` probes at boot):
+The settings overlay holds **brightness**, per-station **enable/disable**, and
+**wifi** (scan + on-screen keyboard join), with firmware/content versions in
+the footer. It is also reachable during the boot wifi wait — the boot screen
+retries the saved network forever and shows a gear (top-right); tap it (or use
+the same hold gesture) to join a new network before the device is online. There
+is no play/pause and no manual audio-output picker (output is auto-detected).
 
-| Output | Hardware | Selection |
+**Audio outputs** (auto-detected at boot — no manual selection):
+
+| Output | Hardware | Detection |
 |---|---|---|
-| `internal` | built-in AW88298 amp + speaker | default fallback |
-| `module audio` | Module Audio M144 (ES8388, TRRS headphone) — pin switch on **B** | auto-detected (I2C 0x33) |
-| `rca module` | Module13.2 RCA M125 (PCM5102A line-out) | manual only — unprobeable |
+| `module audio` | Module Audio M144 (ES8388, TRRS headphone) — pin switch on **B** | preferred when probed at I2C 0x33 |
+| `internal` | built-in AW88298 amp + speaker | fallback when no module is found |
+| `rca module` | Module13.2 RCA M125 (PCM5102A line-out) | unprobeable — not auto-selected |
 
 ## Build & flash
 

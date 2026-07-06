@@ -62,8 +62,11 @@ docs/                    this file + CONTENT-API.md
    copies, and the m5 content pack. Idempotent: unchanged content rewrites
    nothing.
 3. Commit sources and artifacts together.
-4. Deploy: rsync `players/web/public/` to the docroot at waverz.net (nginx +
-   PHP-FPM; `api/cache/` must stay writable by the PHP user).
+4. Deploy: **push to `main`**. A GitHub webhook hits `/api/deploy.php` on
+   waverz.net (Infomaniak, Apache); since the host's web PHP disables all exec
+   functions, the receiver deploys in pure PHP — fetch the repo tarball, mirror
+   `players/web/public/` into the docroot, preserving `api/cache/`. Full detail
+   (HMAC, manual `git pull` fallback) in the root README.
 
 Web code changes additionally require an `APP_VERSION` bump in
 `players/web/public/sw.js` + `app.js` — see `players/web/CLAUDE.md`.

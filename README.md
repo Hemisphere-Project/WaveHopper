@@ -87,7 +87,7 @@ stations are appended alphabetically by the build).
 
 ### Current catalog
 
-23 channels across 6 stations, 2 parked:
+24 channels across 7 stations, 2 parked:
 
 | Station        | Channels | Source         | Status |
 |----------------|----------|----------------|--------|
@@ -97,6 +97,7 @@ stations are appended alphabetically by the build).
 | Noods Radio    | 1        | Radiocult      | added  |
 | NTS            | 18       | Radiomast      | added  |
 | The Lot Radio  | 1        | Livepeer (HLS) | added  |
+| Wave Zero      | 1        | AzuraCast      | added  |
 | Threads Radio  | —        | dead Airtime   | broken |
 | VIZI Radio     | —        | site offline   | broken |
 
@@ -162,9 +163,9 @@ the push if committed artifacts don't match `content/` sources.
 **Manual** (fallback): `ssh hmsphr`, then `git pull` in
 `~/web/waverz.net/WaveHopper` (CLI git works; only the web PHP can't exec).
 
-Cache rules live in `players/web/public/.htaccess` (Apache/LiteSpeed); mirror
-them in nginx where applicable — `/content/**/manifest.json` must never be
-served stale (see CONTENT-API.md §Cache policy).
+Cache rules live in `players/web/public/.htaccess` (Apache/LiteSpeed, the
+production host) — `/content/**/manifest.json` must never be served stale (see
+CONTENT-API.md §Cache policy).
 
 Firmware releases for the M5 player follow the runbook in
 [docs/CONTENT-API.md](docs/CONTENT-API.md#firmware-release-runbook-m5cores3).

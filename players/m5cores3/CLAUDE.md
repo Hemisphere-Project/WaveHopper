@@ -64,6 +64,19 @@ in the root `CLAUDE.md`; the normative cross-player contract is
   GPIO0.
 - **Probe 0x33 only** for Module Audio (its STM32 helper). Never probe 0x10 —
   the internal BMM150 magnetometer answers there on every CoreS3.
+- **Module Audio's codec init steals the touch bus.** `M5Module_Audio.begin`
+  runs `Wire.begin()` on I2C0 over the SAME physical pins (12/11) as
+  `M5.In_I2C` (I2C1, the touch controller + amp). Bringing up the second
+  peripheral re-muxes the GPIOs and silently detaches I2C1 → touch reads
+  garbage forever after. `audio_out.cpp` uses Wire only for the one-shot
+  ES8388 register setup, then `Wire.end()` + `M5.In_I2C.begin(I2C_NUM_1,12,11)`
+  to hand the pins back. Any new Wire user must do the same.
+- **ES8388 default init = mic monitor into the headphones.** The M5Module_Audio
+  codec init leaves the output mixers at 0xd0 (DAC **+** mic/line amp mixed in;
+  0x90 is DAC-only) with micbias on and PGA at 24 dB. On a TRRS headset the
+  live, amplified mic feeds the phones = constant background hiss. `audio_out.cpp`
+  forces DACCONTROL17/20 to 0x90 and powers ADCPOWER down (0xFF) after init —
+  this radio never records.
 - **Realtime-paced streams** (Icecast/Airtime/AzuraCast) leave ~3 KB of
   buffer = every wifi hiccup is an audible gap. The lib has no prebuffer API:
   `player.cpp` suspends the lib's decode task ("PeriodicTask") across
@@ -79,6 +92,14 @@ in the root `CLAUDE.md`; the normative cross-player contract is
   worker tasks (`now_playing.cpp`) or at boot, never on the input loop; the
   one shared verified client is mutex-guarded (`net.cpp`); no keep-alive (the
   server drops idle connections and a parked session pins ~50 KB).
+- **An HTTPS *stream* pins its own ~50 KB TLS session for its whole runtime**,
+  leaving too little internal heap for a second verified handshake — measured:
+  now-playing/telemetry fail with `-32512` at 61 KB free. `net::whBegin` skips
+  those polls below 64 KB free / 20 KB max-block (a clean skip, not a churn).
+  The real fix is upstream: stations that publish a verified plain-HTTP stream
+  carry an `m5Url` so the pack `url` is `http://` (no stream TLS session) —
+  see CONTENT-API.md `m5Url`. Stations that must stay HTTPS (AzuraCast, HLS)
+  lose device-side metadata during playback (ICY stream titles still show).
 - USB-CDC: `Serial.begin()` is required for `Serial.print*` (log_* bypasses
   it). `pio device monitor` needs a TTY — use `scripts/serial_capture.py`
   from scripts/agents (it also does the proper DTR-low reset dance).
