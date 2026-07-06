@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "contentVersion": "fe08e9aa38dc2c76b009192c404909a8e74095223ed661e820a78a6176d1fad7",
-  "generated": "2026-07-04T22:19:59Z",
-  "totalSize": 34118,
+  "contentVersion": "63a1e250f8f77e62fb80eb262139861505cdafbc7dca25d3ea0aac29d37c9479",
+  "generated": "2026-07-06T13:35:43Z",
+  "totalSize": 34365,
   "files": [
     {
       "path": "icons/dublab.png",
@@ -48,8 +48,8 @@
     },
     {
       "path": "stations.json",
-      "sha256": "6aa527b1cedb91fe8289933b0249cb4e006ce58440c609f6a6eff49ce2aadf58",
-      "size": 7977
+      "sha256": "46256485bd66441ad950b2bd39f5e8cea564d8a79d04508f397604b8e2b28541",
+      "size": 8224
     }
   ]
 }

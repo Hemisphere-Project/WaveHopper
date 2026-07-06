@@ -11,5 +11,6 @@
   "nowPlaying": {
     "type": "airtime",
     "endpoint": "https://kioskradiobxl.airtime.pro/api/live-info-v2"
-  }
+  },
+  "m5Url": "http://kioskradiobxl.out.airtime.pro:8000/kioskradiobxl_b"
 }

@@ -8,5 +8,6 @@
   "color": "#b32aeb",
   "homepage": "https://www.nts.live/",
   "icon": "/img/stations/nts.png",
-  "defaultDisabled": true
+  "defaultDisabled": true,
+  "m5Url": "http://streams.radiomast.io/86a296fc-a231-4328-bba0-754fa3eb28e7"
 }

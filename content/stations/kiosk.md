@@ -32,3 +32,9 @@ but both returned HTTP 404. Only the Airtime Icecast stream is live.
 - **Caveats:** Show names arrive HTML-entity-encoded (e.g. `&amp;`) with occasional leading whitespace — the fetcher normalises both. When a Live DJ is on air, `tracks.current.type = "livestream"` and `tracks.current.name` is empty; the show name from `shows.current` is the only usable metadata.
 
 ## Open questions
+
+## Plain-HTTP variant (m5)
+`http://kioskradiobxl.out.airtime.pro:8000/kioskradiobxl_b` — Airtime's native
+Icecast port serves plain HTTP directly. Verified 2026-07-06 (200, audio/aac,
+realtime flow). Set as `m5Url` (device heap relief — see CONTENT-API.md);
+web keeps the https url.

@@ -11,5 +11,6 @@
   "nowPlaying": {
     "type": "radiocult",
     "slug": "noods-radio"
-  }
+  },
+  "m5Url": "http://noods-radio.radiocult.fm/stream"
 }

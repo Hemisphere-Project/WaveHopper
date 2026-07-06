@@ -59,3 +59,11 @@ Also visible in the bundle but not used:
 - Add dublab.de / dublab.es / dublab.jp / dublab.com.br as separate stations?
   They're independent operations broadcasting from Berlin, Barcelona, Tokyo,
   São Paulo respectively. Each would need its own import.
+
+## Plain-HTTP variant (m5)
+`http://dublab.out.airtime.pro:8000/dublab_a` — Airtime's native Icecast port
+serves plain HTTP directly (port 80 is unreachable, not a redirect). Verified
+2026-07-06 (200, audio/mpeg, realtime flow). Set as `m5Url`: the device frees
+~50 KB of internal heap by not holding a stream TLS session, which the
+verified now-playing/telemetry handshakes need. Web keeps the https url
+(mixed content).

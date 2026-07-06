@@ -73,3 +73,15 @@ The numbers are roughly chronological (launch order), not curated.
 
 ## Open questions
 - None.
+
+## Plain-HTTP variants (m5)
+The geo relays (`stream-relay-geo` / `stream-mixtape-geo`) 302 http requests
+to httpS://streams.radiomast.io/<mount>, but entering at
+`http://streams.radiomast.io/<mount>` directly keeps the whole chain plain
+HTTP (302 to an http:// audio-edge, geo-picked by RadioMast). Mounts: `nts1`,
+`nts2` for the live channels; per-mixtape UUIDs harvested from the relay
+redirects (see the `m5Url` in each nts-*.json). All 20 verified 2026-07-06
+(200, audio/mpeg, realtime flow). Set as `m5Url` (device heap relief — see
+CONTENT-API.md); web keeps the https relay urls. Risk: the UUID mounts are
+RadioMast account internals — if NTS recreates streams they change; re-harvest
+from the relay Location headers.

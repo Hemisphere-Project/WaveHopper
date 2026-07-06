@@ -10,5 +10,6 @@
   "icon": "/img/stations/nts.png",
   "nowPlaying": {
     "type": "nts"
-  }
+  },
+  "m5Url": "http://streams.radiomast.io/nts2"
 }

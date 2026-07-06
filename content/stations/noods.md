@@ -49,3 +49,9 @@ access-control-allow-origin: *
 ## Open questions
 
 - None. Single channel, clean Icecast.
+
+## Plain-HTTP variant (m5)
+`http://noods-radio.radiocult.fm/stream` — Radiocult serves the same mount on
+port 80 without a redirect. Verified 2026-07-06 (200, audio/mpeg, realtime
+flow). Set as `m5Url` (device heap relief — see CONTENT-API.md); web keeps
+the https url.

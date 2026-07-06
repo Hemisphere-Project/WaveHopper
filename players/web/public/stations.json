@@ -12,7 +12,8 @@
     "nowPlaying": {
       "type": "airtime",
       "endpoint": "https://dublab.airtime.pro/api/live-info-v2"
-    }
+    },
+    "m5Url": "http://dublab.out.airtime.pro:8000/dublab_a"
   },
   {
     "id": "thelot",
@@ -43,7 +44,8 @@
     "nowPlaying": {
       "type": "airtime",
       "endpoint": "https://kioskradiobxl.airtime.pro/api/live-info-v2"
-    }
+    },
+    "m5Url": "http://kioskradiobxl.out.airtime.pro:8000/kioskradiobxl_b"
   },
   {
     "id": "lyl",
@@ -73,7 +75,8 @@
     "nowPlaying": {
       "type": "radiocult",
       "slug": "noods-radio"
-    }
+    },
+    "m5Url": "http://noods-radio.radiocult.fm/stream"
   },
   {
     "id": "wavezero",
@@ -102,7 +105,8 @@
     "icon": "/img/stations/nts.png",
     "nowPlaying": {
       "type": "nts"
-    }
+    },
+    "m5Url": "http://streams.radiomast.io/nts1"
   },
   {
     "id": "nts-2",
@@ -116,7 +120,8 @@
     "icon": "/img/stations/nts.png",
     "nowPlaying": {
       "type": "nts"
-    }
+    },
+    "m5Url": "http://streams.radiomast.io/nts2"
   },
   {
     "id": "nts-poolside",
@@ -128,7 +133,8 @@
     "color": "#eb6b2a",
     "homepage": "https://www.nts.live/",
     "icon": "/img/stations/nts.png",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "m5Url": "http://streams.radiomast.io/052d2e3c-389c-44cf-a91a-8f5e1854f4c6"
   },
   {
     "id": "nts-slow-focus",
@@ -140,7 +146,8 @@
     "color": "#2aeba3",
     "homepage": "https://www.nts.live/",
     "icon": "/img/stations/nts.png",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "m5Url": "http://streams.radiomast.io/dfc76352-cda6-4a95-85dd-6f6609f83ba2"
   },
   {
     "id": "nts-low-key",
@@ -152,7 +159,8 @@
     "color": "#db2aeb",
     "homepage": "https://www.nts.live/",
     "icon": "/img/stations/nts.png",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "m5Url": "http://streams.radiomast.io/de114902-ee1b-441f-91bc-5468d1e77605"
   },
   {
     "id": "nts-memory-lane",
@@ -164,7 +172,8 @@
     "color": "#c2eb2a",
     "homepage": "https://www.nts.live/",
     "icon": "/img/stations/nts.png",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "m5Url": "http://streams.radiomast.io/fb8322d8-5791-4170-ace3-a85ffc51eb8b"
   },
   {
     "id": "nts-4-to-the-floor",
@@ -176,7 +185,8 @@
     "color": "#2a8aeb",
     "homepage": "https://www.nts.live/",
     "icon": "/img/stations/nts.png",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "m5Url": "http://streams.radiomast.io/b629c9c9-0354-4eea-a0e9-b0baea808669"
   },
   {
     "id": "nts-island-time",
@@ -188,7 +198,8 @@
     "color": "#eb2a52",
     "homepage": "https://www.nts.live/",
     "icon": "/img/stations/nts.png",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "m5Url": "http://streams.radiomast.io/0949a876-344c-4f38-87e1-a4df065e5295"
   },
   {
     "id": "nts-the-tube",
@@ -200,7 +211,8 @@
     "color": "#2aeb3b",
     "homepage": "https://www.nts.live/",
     "icon": "/img/stations/nts.png",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "m5Url": "http://streams.radiomast.io/4983780e-6e6d-4a8b-9b68-8c4d6bdb86dc"
   },
   {
     "id": "nts-sheet-music",
@@ -212,7 +224,8 @@
     "color": "#732aeb",
     "homepage": "https://www.nts.live/",
     "icon": "/img/stations/nts.png",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "m5Url": "http://streams.radiomast.io/976b6107-859e-4bc5-8d63-d6992431c414"
   },
   {
     "id": "nts-feelings",
@@ -224,7 +237,8 @@
     "color": "#ebab2a",
     "homepage": "https://www.nts.live/",
     "icon": "/img/stations/nts.png",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "m5Url": "http://streams.radiomast.io/f89f5370-f9ea-4a8f-8bf1-22ae5fa0c776"
   },
   {
     "id": "nts-expansions",
@@ -236,7 +250,8 @@
     "color": "#2aebe3",
     "homepage": "https://www.nts.live/",
     "icon": "/img/stations/nts.png",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "m5Url": "http://streams.radiomast.io/e4c0a484-140a-4adf-ae72-301280d635ba"
   },
   {
     "id": "nts-rap-house",
@@ -248,7 +263,8 @@
     "color": "#eb2aba",
     "homepage": "https://www.nts.live/",
     "icon": "/img/stations/nts.png",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "m5Url": "http://streams.radiomast.io/21876de8-d5bf-4716-9e1e-6b5909c49d37"
   },
   {
     "id": "nts-labyrinth",
@@ -260,7 +276,8 @@
     "color": "#82eb2a",
     "homepage": "https://www.nts.live/",
     "icon": "/img/stations/nts.png",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "m5Url": "http://streams.radiomast.io/51a1ebc2-ca46-43e4-9567-943551b956ce"
   },
   {
     "id": "nts-sweat",
@@ -272,7 +289,8 @@
     "color": "#2a4aeb",
     "homepage": "https://www.nts.live/",
     "icon": "/img/stations/nts.png",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "m5Url": "http://streams.radiomast.io/f5c44deb-55e7-4766-8755-4c5e603ccbb1"
   },
   {
     "id": "nts-otaku",
@@ -284,7 +302,8 @@
     "color": "#eb432a",
     "homepage": "https://www.nts.live/",
     "icon": "/img/stations/nts.png",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "m5Url": "http://streams.radiomast.io/7481798f-063c-42a2-8048-15ff98fe309e"
   },
   {
     "id": "nts-the-pit",
@@ -296,7 +315,8 @@
     "color": "#2aeb7b",
     "homepage": "https://www.nts.live/",
     "icon": "/img/stations/nts.png",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "m5Url": "http://streams.radiomast.io/d0877da6-0037-4f67-86d7-3ecbc86e362c"
   },
   {
     "id": "nts-field-recordings",
@@ -308,6 +328,7 @@
     "color": "#b32aeb",
     "homepage": "https://www.nts.live/",
     "icon": "/img/stations/nts.png",
-    "defaultDisabled": true
+    "defaultDisabled": true,
+    "m5Url": "http://streams.radiomast.io/86a296fc-a231-4328-bba0-754fa3eb28e7"
   }
 ]
