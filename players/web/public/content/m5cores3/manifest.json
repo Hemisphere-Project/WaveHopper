@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "contentVersion": "63a1e250f8f77e62fb80eb262139861505cdafbc7dca25d3ea0aac29d37c9479",
-  "generated": "2026-07-06T13:35:43Z",
+  "contentVersion": "c0f0bf6e7dce4f4ca5ae847b0ecf3d3e3e063f611251063165d17a11712b3d25",
+  "generated": "2026-07-15T13:36:33Z",
   "totalSize": 34365,
   "files": [
     {
@@ -48,7 +48,7 @@
     },
     {
       "path": "stations.json",
-      "sha256": "46256485bd66441ad950b2bd39f5e8cea564d8a79d04508f397604b8e2b28541",
+      "sha256": "b006a19aa1361ab81b34ee3c0f4dd52a858d806803a1ef0a0aebaf5be987b9b0",
       "size": 8224
     }
   ]

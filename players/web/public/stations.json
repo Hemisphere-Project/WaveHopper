@@ -13,7 +13,7 @@
       "type": "airtime",
       "endpoint": "https://dublab.airtime.pro/api/live-info-v2"
     },
-    "m5Url": "http://dublab.out.airtime.pro:8000/dublab_a"
+    "m5Url": "http://dublab.out.airtime.pro:8000/dublab_b"
   },
   {
     "id": "thelot",

@@ -35,6 +35,16 @@ but both returned HTTP 404. Only the Airtime Icecast stream is live.
 
 ## Plain-HTTP variant (m5)
 `http://kioskradiobxl.out.airtime.pro:8000/kioskradiobxl_b` — Airtime's native
-Icecast port serves plain HTTP directly. Verified 2026-07-06 (200, audio/aac,
-realtime flow). Set as `m5Url` (device heap relief — see CONTENT-API.md);
-web keeps the https url.
+Icecast port serves plain HTTP directly. Set as `m5Url` (device heap relief —
+see CONTENT-API.md); web keeps the https url.
+
+Re-verified 2026-07-15: the `:8000` Icecast mounts now serve **64 kbps MP3**
+(both `_a` and `_b`: 200 `audio/mpeg` `icy-br:64`), not the 192 kbps AAC the
+HTTPS airtime.pro CDN mount carries — the plain-HTTP Icecast port and the CDN
+serve different re-encodes for this station. No 128 kbps middle mount exists.
+**Deliberate choice: keep the 64 kbps plain-HTTP mount.** It is the most
+flaky-wifi-friendly option (lowest bandwidth *and* no stream TLS heap pin),
+which is the CoreS3's priority; the only cost is rougher audio on this one
+music station. To trade reliability for fidelity, revert `m5Url` to the HTTPS
+`_b` (192 kbps AAC) and accept the ~50 KB heap cost + 3× bandwidth. There is
+no lower-bitrate lever left here — this note is the record of the decision.

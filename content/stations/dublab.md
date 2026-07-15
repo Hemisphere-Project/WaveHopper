@@ -61,9 +61,17 @@ Also visible in the bundle but not used:
   São Paulo respectively. Each would need its own import.
 
 ## Plain-HTTP variant (m5)
-`http://dublab.out.airtime.pro:8000/dublab_a` — Airtime's native Icecast port
-serves plain HTTP directly (port 80 is unreachable, not a redirect). Verified
-2026-07-06 (200, audio/mpeg, realtime flow). Set as `m5Url`: the device frees
-~50 KB of internal heap by not holding a stream TLS session, which the
-verified now-playing/telemetry handshakes need. Web keeps the https url
-(mixed content).
+`http://dublab.out.airtime.pro:8000/dublab_b` — Airtime's native Icecast port
+serves plain HTTP directly (port 80 is unreachable, not a redirect). Set as
+`m5Url` for two reasons: (1) plain HTTP frees ~50 KB of internal heap the
+device would otherwise pin on a stream TLS session (the verified
+now-playing/telemetry handshakes need it); (2) the `_b` mount is **128 kbps**
+vs `_a`'s 192 kbps — same live program, re-encoded lower — which the CoreS3
+never out-resolves and which buys real headroom on flaky wifi (lower arrival
+rate to stay realtime, faster prebuffer convergence). Mounts verified
+2026-07-15: `_a` 200 audio/mpeg icy-br:192, `_b` 200 audio/mpeg icy-br:128
+(frame header `fffb 9264` = MPEG-1 L3 128 kbps 44.1 kHz, sustained realtime).
+Web keeps the https `_a` url (mixed content + no bandwidth constraint).
+
+Policy: the m5 pack carries the lowest listenable mount (~96–128 kbps floor)
+a platform offers, plain-HTTP where possible — see CONTENT-API.md `m5Url`.
