@@ -88,6 +88,13 @@ in the root `CLAUDE.md`; the normative cross-player contract is
   `Audio::audio_info_callback` **in the pumping task's context**;
   `connecttohost` blocks up to ~3 s (never call from the UI task); volume
   range 0..21; no legacy `audio_info()` weak callbacks anymore.
+- **The lib's decode task lives in ONE static TCB/stack** (`xAudioTaskBuffer`).
+  `setAudioTaskCore()` on a live task = `vTaskDelete` + immediate re-create in
+  the same TCB; a task deleted from the other core is parked on the idle
+  task's termination list, so the re-init corrupts that list → intermittent
+  IDLE0 `LoadProhibited` in `uxListRemove` right after `audio:` at boot. Set
+  the core **before** `setPinout` (task created once, on the right core);
+  never `setAudioTaskCore`/`stopAudioTask` a running task.
 - A TLS handshake blocks ~0.5–1 s and needs ~50 KB heap: network calls run on
   worker tasks (`now_playing.cpp`) or at boot, never on the input loop; the
   one shared verified client is mutex-guarded (`net.cpp`); no keep-alive (the
