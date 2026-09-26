@@ -40,6 +40,14 @@ in the root `CLAUDE.md`; the normative cross-player contract is
   copies are stale). M5Unified and M5GFX move **together**.
 - Compile gate: `pio run` (both envs). No device CI — every OTA-published
   binary gets hand-tested on the in-hand device first.
+- `custom_sdkconfig` (lwIP TCP window, see below) puts pioarduino in
+  **hybrid compile**: the framework libs are rebuilt from ESP-IDF once
+  (~15 min, then cached in the shared `framework-arduinoespressif32-libs`).
+  Its second stage re-invokes `pio` from **`~/.platformio/penv`** (not
+  penv-py313) — that venv's Core must also be ≥ 6.1.19 or it *uninstalls the
+  pinned platform* as incompatible (`uv pip install --python
+  ~/.platformio/penv/bin/python platformio==6.1.19`). `esp-modbus` is removed
+  via `custom_component_remove` (fails its own static assert there).
 - PlatformIO reorders `-U`/`-D` build flags: never mix `${...}` inheritance
   with undef-then-redefine overrides (leaves macros undefined — bit us once).
 
@@ -77,6 +85,18 @@ in the root `CLAUDE.md`; the normative cross-player contract is
   live, amplified mic feeds the phones = constant background hiss. `audio_out.cpp`
   forces DACCONTROL17/20 to 0x90 and powers ADCPOWER down (0xFF) after init —
   this radio never records.
+- **lwIP TCP receive window**: the precompiled Arduino libs ship 5760 B
+  (4 MSS) → throughput ≤ window/RTT ≈ 20 KB/s to the US Airtime hosts, below
+  a 192 kbps stream. `platformio.ini` raises it to 32 KB (+ recvmbox 32).
+  Measured after: arrival no longer window-bound; what's left is the RF link.
+- **Diagnose wifi before firmware.** `[buf] arriv=` ≈ `cons=` with a sinking
+  cushion, multi-second TCP connects, or ping to the device in the seconds
+  = the 2.4 GHz channel, not the code. 2026-09-26: the bench AP (RE700X,
+  AP mode) sat on ch 4 next to another AP on ch 5 → ~3 s pings, stations
+  never locking; moved to ch 1 / 20 MHz → kiosk holds a full 164 KB cushion.
+- **Wifi runtime watchdog** (`whwifi::maintain`): the stack's auto-reconnect
+  once failed to recover from an AP channel change (offline until reset);
+  after 20 s down it re-begins the association.
 - **Realtime-paced streams** (Icecast/Airtime/AzuraCast) leave ~3 KB of
   buffer = every wifi hiccup is an audible gap. The lib has no prebuffer API:
   `player.cpp` suspends the lib's decode task ("PeriodicTask") across

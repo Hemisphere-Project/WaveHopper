@@ -3,6 +3,7 @@
 #include <WiFi.h>
 #include <time.h>
 
+#include "config.h"
 #include "secrets.h"
 
 namespace whwifi {
@@ -58,5 +59,30 @@ bool joinNew(const String& ssid, const String& pass, uint32_t timeoutMs) {
 }
 
 bool isConnected() { return WiFi.status() == WL_CONNECTED; }
+
+void maintain(const WhSettings& s) {
+  static uint32_t downSince = 0, lastKick = 0;
+  uint32_t now = millis();
+  if (isConnected()) {
+    if (downSince) {
+      log_i("wifi back after %lus", (unsigned long)((now - downSince) / 1000));
+      onLink(s);
+    }
+    downSince = 0;
+    return;
+  }
+  if (!downSince) {
+    downSince = now;
+    lastKick = now;
+    return;
+  }
+  if (s.ssid.isEmpty() || now - lastKick < WH_WIFI_REKICK_MS) return;
+  lastKick = now;
+  log_w("wifi down %lus — re-kicking %s", (unsigned long)((now - downSince) / 1000),
+        s.ssid.c_str());
+  WiFi.disconnect();  // begin() mid-attempt is rejected (ESP_ERR_WIFI_STATE)
+  delay(100);
+  WiFi.begin(s.ssid.c_str(), s.pass.c_str());
+}
 
 }  // namespace whwifi

@@ -22,4 +22,11 @@ bool syncClock(uint32_t timeoutMs);
 bool joinNew(const String& ssid, const String& pass, uint32_t timeoutMs);
 
 bool isConnected();
+
+// Runtime link watchdog — call every loop() pass after boot. The stack's own
+// auto-reconnect does not always recover: measured, an AP channel change left
+// the device offline indefinitely (2+ min, until reset). After
+// WH_WIFI_REKICK_MS down, drop + re-begin the stored network (repeats at that
+// period); on recovery re-runs onLink() (sleep-off must be re-asserted).
+void maintain(const WhSettings& s);
 }  // namespace whwifi

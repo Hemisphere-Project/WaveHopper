@@ -56,6 +56,7 @@
 // ---------------------------------------------------------------------------
 // Timing.
 #define WH_WIFI_TIMEOUT_MS    30000  // boot wifi connect budget
+#define WH_WIFI_REKICK_MS     20000  // runtime: re-begin association after this long down
 #define WH_SNTP_TIMEOUT_MS    10000  // clock sync budget (TLS needs wall time)
 #define WH_TUNE_TIMEOUT_MS    15000  // connect→codec deadline per attempt
 // Startup cushion: most stations (Icecast/Airtime/AzuraCast) pace at exactly

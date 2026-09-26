@@ -1,0 +1,8 @@
+
+# pioarduino hybrid compile (custom_sdkconfig) — generated
+.dummy/
+managed_components/
+sdkconfig.defaults
+sdkconfig.m5stack-cores3*
+dependencies.lock
+src/idf_component.yml

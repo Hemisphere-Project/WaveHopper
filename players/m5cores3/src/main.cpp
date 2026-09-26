@@ -305,6 +305,9 @@ void loop() {
     ui::wifiMeter(0);  // reads RSSI itself; visible in every state incl. tuning
   }
 
+  // Settings' own scan/join flow owns the radio while open.
+  if (!ui::settingsOpen()) whwifi::maintain(settings);
+
   ui::tick();
 
   vTaskDelay(pdMS_TO_TICKS(5));

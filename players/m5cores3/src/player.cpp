@@ -51,6 +51,14 @@ std::vector<uint32_t> g_targets;
 constexpr uint32_t kTargetCap = 393216;  // ~16 s at 192 kbps
 uint32_t g_sweepAt = 0;
 uint32_t g_stallSince = 0;
+// Depleted-cushion detector state (Playing only). Reset on every Playing
+// entry: when these were function statics, the first tick of a new Playing
+// session added the whole gap since the PREVIOUS session as "low time" and
+// rebuffered instantly (seen on device: "playing … 26695 bytes cushion" then
+// "cushion low" 250 ms later) — a retune loop on any slow-to-lock station.
+uint32_t g_lowAccumMs = 0, g_lowWindowStart = 0, g_lastLowTick = 0;
+uint32_t g_lastRebuffer = 0;
+uint32_t g_playCushion = 0;  // bytes buffered when playback started
 uint32_t g_lastHealth = 0;
 uint8_t g_volume = 12;
 bool g_volDirty = false;
@@ -278,6 +286,10 @@ void tick() {
         if (g_decodeSuspended.exchange(false)) vTaskResume(g_decodeTask);
         log_i("playing [%d] with %lu bytes cushion", g_current, (unsigned long)buffered);
         g_state = PlayerState::Playing;
+        g_playCushion = buffered;
+        g_lowAccumMs = 0;
+        g_lowWindowStart = 0;
+        g_lastLowTick = 0;
         clearSweep();
         whnvs::saveLastStation(catalog::at(g_current).id);
         audio_out::onSampleRate(g_profile, 48000);  // amp healthy at stream start
@@ -321,22 +333,25 @@ void tick() {
         // resets to the edge and re-bursts the playlist, INTERRUPTING the CDN's
         // natural burst recovery (measured: The Lot self-heals 100↔137 KB).
         // For HLS we only rebuffer at near-stall, and never grow the target.
-        static uint32_t lowAccumMs = 0, windowStart = 0, lastLowTick = 0,
-                        lastRebuffer = 0;
         bool hls = catalog::at(g_current).isHls;
         uint32_t target = g_targets.empty() ? WH_PREBUFFER_BYTES : g_targets[g_current];
         uint32_t lowWater = hls ? WH_REBUFFER_LOW
                                 : std::max<uint32_t>(WH_REBUFFER_LOW, target / 4);
-        if (!windowStart || now - windowStart > WH_REBUFFER_WINDOW_MS) {
-          windowStart = now;
-          lowAccumMs = 0;
+        // Never above half the cushion we actually started with: a start on
+        // the wait cap (slow link) holding steady is healthy, not depleted —
+        // reconnecting it just burns another slow lock.
+        lowWater = std::min<uint32_t>(
+            lowWater, std::max<uint32_t>(WH_REBUFFER_LOW, g_playCushion / 2));
+        if (!g_lowWindowStart || now - g_lowWindowStart > WH_REBUFFER_WINDOW_MS) {
+          g_lowWindowStart = now;
+          g_lowAccumMs = 0;
         }
-        if (buffered < lowWater && lastLowTick) lowAccumMs += now - lastLowTick;
-        lastLowTick = now;
-        if (lowAccumMs > WH_REBUFFER_LOW_MS && now - lastRebuffer > 15000) {
-          lowAccumMs = 0;
-          windowStart = 0;
-          lastRebuffer = now;
+        if (buffered < lowWater && g_lastLowTick) g_lowAccumMs += now - g_lastLowTick;
+        g_lastLowTick = now;
+        if (g_lowAccumMs > WH_REBUFFER_LOW_MS && now - g_lastRebuffer > 15000) {
+          g_lowAccumMs = 0;
+          g_lowWindowStart = 0;
+          g_lastRebuffer = now;
           if (!g_targets.empty() && !hls && buffered < WH_REBUFFER_LOW) {
             // Deep depletion (not just shallow-after-recovery): the station
             // earns a bigger cushion. Not for HLS — its ceiling is the CDN.
