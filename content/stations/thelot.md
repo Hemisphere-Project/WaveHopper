@@ -85,3 +85,12 @@ On-device measurement shows arrival often lags that on this connection
 CDN isn't bursting. This is a stream/network ceiling, not a firmware bug;
 firmware now degrades gracefully (rare big-cushion refill, HLS-aware). If it's
 too disruptive in practice, drop thelot.m5Url to make it web-only again.
+
+## m5Url skips the first redirect hop (2026-09-26)
+`livepeercdn.studio/hls/…` 307s to `playback.livepeer.studio/hls/…`, which 307s
+again to a geo-picked catalyst node (`fra-prod-catalyst-0.lp-playback.studio`
+from Europe). Each hop is a fresh TLS handshake on the CoreS3 (0.5–2 s on a
+marginal link), so m5Url now starts at `playback.livepeer.studio` — one
+handshake saved, Livepeer's geo edge selection kept (don't pin the catalyst
+node). Web `url` unchanged. The CDN window is now 23 × 2 s segments (~46 s),
+not the ~5 s noted in July; the lib starts at the oldest segment.
