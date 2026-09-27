@@ -17,8 +17,10 @@ bool clockValid();
 // Begin a GET on https://WH_CONTENT_HOST<path>. On true, use http() to read
 // status/stream, then end(). whBegin/end bracket a critical section (one
 // shared TLS client) — callers on different tasks serialize automatically;
-// never call whBegin twice without end().
-bool whBegin(const String& path);
+// never call whBegin twice without end(). allowPlain: when a verified
+// handshake can't be afforded (heap, or no clock), use plain http:// instead
+// of skipping — ONLY for public display data (now-playing).
+bool whBegin(const String& path, bool allowPlain = false);
 HTTPClient& http();
 void end();
 }  // namespace net

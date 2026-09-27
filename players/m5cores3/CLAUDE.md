@@ -20,7 +20,9 @@ in the root `CLAUDE.md`; the normative cross-player contract is
   `/content/m5cores3/*`, `/content/firmware/m5cores3/*`,
   `/api/now-playing.php?id=<id>`, `/api/telemetry.php` (anonymous listener
   stats, fire-and-forget on its own worker). Audio streams go to arbitrary
-  hosts (unverified — accepted trade-off).
+  hosts (unverified — accepted trade-off). **Exception:** now-playing (only)
+  falls back to plain `http://` when a verified handshake can't be afforded
+  (`net::whBegin(path, allowPlain)`) — never extend that to sync/OTA/telemetry.
 - Content sync: **equality** on `contentVersion`, per-file sha256 diff,
   staged atomic commit — implemented in `content_sync.cpp`; don't reinvent.
 - Firmware: update iff remote `build` (integer) **>** compiled `WH_FW_BUILD`.
@@ -149,7 +151,7 @@ in the root `CLAUDE.md`; the normative cross-player contract is
   The real fix is upstream: stations that publish a verified plain-HTTP stream
   carry an `m5Url` so the pack `url` is `http://` (no stream TLS session) —
   see CONTENT-API.md `m5Url`. Stations that must stay HTTPS (AzuraCast, HLS)
-  lose device-side metadata during playback (ICY stream titles still show).
+  get now-playing over the plain-HTTP fallback; telemetry is skipped for them.
 - USB-CDC: `Serial.begin()` is required for `Serial.print*` (log_* bypasses
   it). `pio device monitor` needs a TTY — use `scripts/serial_capture.py`
   from scripts/agents (it also does the proper DTR-low reset dance).

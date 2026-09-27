@@ -47,13 +47,15 @@ std::atomic<bool> g_pollLanded{false};  // worker → tick: got a definitive ans
 
 void poll(const Station& s) {
   String path = String(WH_NOW_PLAYING_PATH) + s.id;
-  if (!net::whBegin(path)) return;  // heap-guarded skip — tick retries soon
+  // allowPlain: during HTTPS streams a verified handshake doesn't fit in
+  // internal heap; metadata is public, display-only (see net::whBegin).
+  if (!net::whBegin(path, /*allowPlain=*/true)) return;  // skip — tick retries soon
 
   int code = net::http().GET();
   if (code < 0) {
     // Transient connect/socket error — one fresh retry.
     net::end();
-    if (!net::whBegin(path)) return;
+    if (!net::whBegin(path, /*allowPlain=*/true)) return;
     code = net::http().GET();
   }
   if (code == 200 || code == 204) g_pollLanded = true;

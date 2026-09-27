@@ -177,6 +177,15 @@ while playing and visible/awake, ≥ 30 s interval. Stations with
 `nowPlaying.type` of `hls-id3` or `none` (or no `nowPlaying` at all) are not
 served by the dispatcher.
 
+**Scheme.** The endpoint MUST stay reachable over plain `http://` as well as
+`https://` (no forced redirect). The m5cores3 firmware fetches it over
+verified TLS when it can afford the handshake and falls back to plain HTTP
+while an HTTPS stream holds its internal heap (The Lot, LYL — otherwise those
+stations never show device-side metadata). Accepted trade-off (2026-09-27):
+the payload is public, display-only text, the same trust level as the stream
+audio (fetched unverified). Content sync, firmware OTA and telemetry stay
+verified-TLS only.
+
 ## Telemetry
 
 `POST /api/telemetry.php` — anonymous listener telemetry from all players.

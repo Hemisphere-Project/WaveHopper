@@ -17,6 +17,7 @@ namespace {
 NetworkClient g_client;
 #else
 NetworkClientSecure g_client;
+NetworkClient g_plain;  // opt-in plain-HTTP fallback (see whBegin)
 #endif
 HTTPClient g_http;
 bool g_clockValid = false;
@@ -46,29 +47,41 @@ namespace net {
 void setClockValid(bool valid) { g_clockValid = valid; }
 bool clockValid() { return g_clockValid; }
 
-bool whBegin(const String& path) {
+bool whBegin(const String& path, bool allowPlain) {
+  bool plain = false;
 #ifndef WH_DEV_INSECURE_HOST
-  if (!g_clockValid) return false;  // cert validation would fail pre-SNTP
   // A verified TLS handshake peaks ~50 KB of internal heap with ~17 KB
   // contiguous record buffers. Measured on-device: 61 KB free still fails
   // (-32512 alloc) while an HTTPS stream pins its own ~50 KB session. Below
-  // these floors the handshake cannot succeed — skip the poll/post cleanly
-  // instead of churning mbedtls (fragmentation + crash risk). Sessions and
-  // metadata tolerate dropped samples; ICY stream titles still flow.
-  if (ESP.getFreeHeap() < 64000 || ESP.getMaxAllocHeap() < 20000) {
-    log_w("net: skipping %s, low heap (%lu free, %lu max block)", path.c_str(),
-          (unsigned long)ESP.getFreeHeap(), (unsigned long)ESP.getMaxAllocHeap());
-    return false;
+  // these floors the handshake cannot succeed — skip cleanly instead of
+  // churning mbedtls (fragmentation + crash risk).
+  bool tlsOk = g_clockValid && ESP.getFreeHeap() >= 64000 && ESP.getMaxAllocHeap() >= 20000;
+  if (!tlsOk) {
+    // Callers fetching public, display-only data (now-playing) may fall back
+    // to plain HTTP: a socket needs a few KB, not ~50. Without it an HTTPS
+    // stream (The Lot, LYL) never showed metadata — every poll was skipped.
+    // Integrity trade-off = the stream audio's (fetched unverified). Content
+    // sync, OTA and telemetry never opt in. Decided 2026-09-27 (Thomas).
+    if (allowPlain && ESP.getFreeHeap() >= 16000 && ESP.getMaxAllocHeap() >= 4096) {
+      plain = true;
+    } else {
+      log_w("net: skipping %s, low heap (%lu free, %lu max block)", path.c_str(),
+            (unsigned long)ESP.getFreeHeap(), (unsigned long)ESP.getMaxAllocHeap());
+      return false;
+    }
   }
 #endif
   if (xSemaphoreTake(g_mutex, pdMS_TO_TICKS(15000)) != pdTRUE) return false;
   initOnce();
 #ifdef WH_DEV_INSECURE_HOST
   String url = String("http://") + WH_DEV_INSECURE_HOST + path;
+  NetworkClient& client = g_client;
 #else
-  String url = String("https://") + WH_CONTENT_HOST + path;
+  String url = String(plain ? "http://" : "https://") + WH_CONTENT_HOST + path;
+  NetworkClient& client = plain ? g_plain : static_cast<NetworkClient&>(g_client);
+  if (plain) log_i("net: %s over plain HTTP (TLS unaffordable now)", path.c_str());
 #endif
-  if (!g_http.begin(g_client, url)) {
+  if (!g_http.begin(client, url)) {
     log_e("http begin failed: %s", url.c_str());
     xSemaphoreGive(g_mutex);
     return false;
