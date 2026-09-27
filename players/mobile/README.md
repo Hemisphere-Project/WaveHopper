@@ -1,7 +1,9 @@
 # WaveHopper — mobile apps (iOS / Android)
 
 **Status: not initialized.** This directory is a placeholder plus the decision
-record; app work starts after the M5 player stabilizes.
+record. **Current plan: [PLAN-DRAFT.md](PLAN-DRAFT.md)** (2026-09-27, parked
+until stations agree) — it supersedes the wrapper assumptions below: playback
+must be a native engine, the catalog is rights-gated, the binary is logo-free.
 
 ## Decision record (2026-07-04)
 

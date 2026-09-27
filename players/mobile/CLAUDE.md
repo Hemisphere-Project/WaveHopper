@@ -16,7 +16,10 @@ Working rules for AI agents in this directory. Repo-wide picture: root
 ## Current state
 
 Placeholder only — Capacitor is chosen (see README.md decision record) but
-`npx cap init` has not been run. When starting real work here: initialize the
+`npx cap init` has not been run. **Read `PLAN-DRAFT.md` first**: playback
+is a native plugin (the WebView can't keep audio alive in the background),
+the app only shows stations whose `rights` were granted, and no third-party
+logo is ever bundled in the binary. When starting real work here: initialize the
 Capacitor project in this directory, keep the shell thin (plugin glue +
 config, no app logic), and update README.md + this file with the real build
 commands.
