@@ -5,6 +5,7 @@
 #include <WiFi.h>
 
 #include <algorithm>
+#include <vector>
 
 #include "catalog.h"
 #include "config.h"
@@ -220,15 +221,23 @@ String resolveMeta() {
   return title;
 }
 
-void drawIconOrPlaceholder(const Station& s) {
-  constexpr int SIZE = 128, X = 8, Y = 16;
-  bool drawn = false;
-  if (!s.iconPath.isEmpty() && LittleFS.exists(s.iconPath)) {
-    // 64 px pack icons at 2x — nearest-neighbor fits the pixel aesthetic.
-    drawn = g_card.drawPngFile(LittleFS, s.iconPath.c_str(), X, Y, SIZE, SIZE,
-                               0, 0, 2.0f, 2.0f);
-  }
-  if (!drawn) {
+// Station icons, decoded ONCE at boot (preloadIcons) into PSRAM sprites
+// pre-composited on the card background; renders only copy pixels. Decoding
+// PNGs at render time crashed: M5GFX's alpha-PNG path takes an unchecked
+// heap_alloc_dma() line buffer (internal RAM), and during an HTTPS stream
+// internal heap drops to ~5 KB max block → null store (StoreProhibited in
+// png_draw_alpha_scale_callback, found by scripts/fuzz.py). It also removes
+// the per-render decode that caused input hitches.
+constexpr int ICON_SIZE = 128, ICON_X = 8, ICON_Y = 16;
+std::vector<M5Canvas*> g_icons;  // by catalog index; nullptr → placeholder
+
+void drawIconOrPlaceholder(int index) {
+  const Station& s = catalog::at(index);
+  constexpr int SIZE = ICON_SIZE, X = ICON_X, Y = ICON_Y;
+  M5Canvas* icon = index < (int)g_icons.size() ? g_icons[index] : nullptr;
+  if (icon) {
+    icon->pushSprite(&g_card, X, Y);
+  } else {
     g_card.fillRoundRect(X, Y, SIZE, SIZE, 12, s.color565);
     g_card.setFont(&F_BIG);
     g_card.setTextSize(2);
@@ -253,7 +262,7 @@ void buildCard() {
 
   const Station& s = catalog::at(g_snap.stationIndex);
   g_card.fillRect(0, 0, W, 6, s.color565);
-  drawIconOrPlaceholder(s);
+  drawIconOrPlaceholder(g_snap.stationIndex);
 
   // Text column right of the icon.
   constexpr int TX = 148;
@@ -619,6 +628,33 @@ void doWifiScan() {
 }  // namespace
 
 namespace ui {
+
+void preloadIcons() {
+  for (M5Canvas* c : g_icons) delete c;
+  g_icons.assign(catalog::count(), nullptr);
+  int ok = 0;
+  for (size_t i = 0; i < catalog::count(); i++) {
+    const Station& s = catalog::at(i);
+    if (s.iconPath.isEmpty() || !LittleFS.exists(s.iconPath)) continue;
+    auto* c = new M5Canvas(&g_card);
+    c->setPsram(true);
+    c->setColorDepth(16);
+    if (!c->createSprite(ICON_SIZE, ICON_SIZE)) {
+      delete c;
+      continue;
+    }
+    c->fillScreen(COL_BG);
+    // 64 px pack icons at 2x — nearest-neighbor fits the pixel aesthetic.
+    if (c->drawPngFile(LittleFS, s.iconPath.c_str(), 0, 0, ICON_SIZE, ICON_SIZE, 0, 0, 2.0f,
+                       2.0f)) {
+      g_icons[i] = c;
+      ok++;
+    } else {
+      delete c;
+    }
+  }
+  log_i("icons: %d/%u cached (PSRAM)", ok, (unsigned)catalog::count());
+}
 
 void begin(uint8_t brightness) {
   M5.Display.setBrightness(brightness);

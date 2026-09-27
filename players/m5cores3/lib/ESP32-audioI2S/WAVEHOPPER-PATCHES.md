@@ -23,6 +23,26 @@ only The Lot hit it. **Verified**: The Lot decodes and plays on the CoreS3.
 Worth upstreaming to schreibfaul1 — it's a general Livepeer-HLS bug, not
 WaveHopper-specific.
 
+### 3. Bounded TLS handshake on stream connects  ✅
+`src/Audio.cpp` constructor: `clientsecure.setHandshakeTimeout(8)`. The
+Arduino `NetworkClientSecure` default is **120 s**, and `setConnectionTimeout`
+does not cover the handshake — measured on-device, a stalled handshake held
+`connecttohost` (and so the whole player task) for 25.5 s across two tune
+deadlines; queued tunes could not run. 8 s bounds it under the 15 s tune
+deadline (normal handshakes: 0.4 s, ≤4.3 s on a congested channel).
+
+### 4. TS reader: no busy-loop when the socket is idle  ✅
+`src/Audio.cpp` end of `processWebStreamTS()`. `m_pwsst.f_nextRound` is set
+after the first packet and only cleared once the segment's Content-Length has
+been read, and the function ends with `if (f_nextRound) goto nextRound;` — so
+mid-segment, once `available()` returns 0, it loops without bound. On a live HLS socket that is a busy-wait for the next bytes (starves
+core 0, where the wifi stack runs); on a dead one (wifi drop mid-segment) it
+never returns: the player task can't take the stop command and the task
+watchdog resets the device (`task_wdt: IDLE0 … CPU 0: wh_player`, backtrace in
+`processWebStreamTS`, found by scripts/fuzz.py). Fix: loop only while the
+round actually had bytes; otherwise return to `loop()`. Check upstream before
+re-basing — the same pattern may exist in `processWebStreamHLS()`.
+
 ### 2. Diagnostics (`#ifdef WH_TS_DIAG`, off by default)
 `src/Audio.cpp` — kept (compiled out) for the next misbehaving TS/HLS station:
 - `ts_parsePacket()`: PMT stream discovery + the "PES not found" packet dump.

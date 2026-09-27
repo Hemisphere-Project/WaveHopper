@@ -21,6 +21,15 @@ volatile int g_requestedStation = -1;  // set by tick(), consumed by worker
 
 uint32_t g_nextPollAt = 0;
 int g_lastStation = -1;
+// No worker TLS while a stream is being brought up: a verified handshake
+// (~50 KB peak) overlapping decoder init + the prebuffer burst was measured
+// dropping internal heap to 2988 B free / 788 B max block (scripts/fuzz.py) —
+// one allocation away from a wifi/lwIP failure. tick() keeps pushing this
+// forward while not playing; the worker waits it out (telemetry stays queued,
+// a skipped poll is retried by tick's 5 s path).
+constexpr uint32_t kQuietAfterStartMs = 5000;
+std::atomic<uint32_t> g_quietUntil{0};
+bool quietNow() { return (int32_t)(millis() - g_quietUntil.load()) < 0; }
 
 void publish(const String& title, const String& subtitle) {
   xSemaphoreTake(g_mux, portMAX_DELAY);
@@ -76,11 +85,11 @@ void workerTask(void*) {
   // queue (drained between polls). A second worker's stack starved internal
   // RAM below what mbedtls handshakes need during playback.
   for (;;) {
-    if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(500))) {
+    if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(500)) && !quietNow()) {
       int idx = g_requestedStation;
       if (idx >= 0 && idx < (int)catalog::count()) poll(catalog::at(idx));
     }
-    telemetry::drainOne();
+    if (!quietNow()) telemetry::drainOne();
   }
 }
 
@@ -95,6 +104,7 @@ void tick(bool playing, int stationIndex, bool stationChanged) {
   }
 
   uint32_t now = millis();
+  if (!playing || stationChanged) g_quietUntil = now + kQuietAfterStartMs;
   if (stationChanged) {
     publish("", "");
     g_pollLanded = false;

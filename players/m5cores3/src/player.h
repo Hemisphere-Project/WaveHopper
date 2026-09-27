@@ -27,6 +27,9 @@ void begin(AudioProfile profile, uint8_t volume, int firstStationIndex);
 // Debounced-browse commit: tune to an absolute catalog index (fast prebuffer).
 void tuneTo(int index);
 void setVolume(uint8_t v);  // 0..21, clamped
+// Force a fresh connect to the current station even while playing (debug /
+// serial console; tuneTo() ignores the station already playing).
+void retune();
 
 // Supervisor pump — call from loop() at ~10 Hz+. Handles tune deadlines,
 // retry/skip, stall detection, all-failed sweeps, amp health, wifi loss.

@@ -87,8 +87,11 @@ in the root `CLAUDE.md`; the normative cross-player contract is
   this radio never records.
 - **lwIP TCP receive window**: the precompiled Arduino libs ship 5760 B
   (4 MSS) → throughput ≤ window/RTT ≈ 20 KB/s to the US Airtime hosts, below
-  a 192 kbps stream. `platformio.ini` raises it to 32 KB (+ recvmbox 32).
-  Measured after: arrival no longer window-bound; what's left is the RF link.
+  a 192 kbps stream. `platformio.ini` raises it to **16 KB** (+ recvmbox 32).
+  Don't go bigger: HLS segments arrive as line-rate bursts that park up to a
+  window in *internal* RAM — 32 KB took internal heap to 0 KB max block on
+  every segment. (mbedtls options can't be changed this way — the hybrid
+  compile leaves `libmbedcrypto.a` prebuilt; TLS stays in internal RAM.)
 - **Diagnose wifi before firmware.** `[buf] arriv=` ≈ `cons=` with a sinking
   cushion, multi-second TCP connects, or ping to the device in the seconds
   = the 2.4 GHz channel, not the code. 2026-09-26: the bench AP (RE700X,
@@ -97,6 +100,26 @@ in the root `CLAUDE.md`; the normative cross-player contract is
 - **Wifi runtime watchdog** (`whwifi::maintain`): the stack's auto-reconnect
   once failed to recover from an AP channel change (offline until reset);
   after 20 s down it re-begins the association.
+- **Framework/lib landmines found by fuzzing** (fixed — keep the fixes):
+  - `NetworkManager::hostByName()` calls `dns_clear_cache()` without the
+    TCPIP core lock when the IP state flips (wifi drop/reconnect) → abort in
+    `udp_remove` if another lookup is in flight. Wrapped via
+    `-Wl,--wrap=dns_clear_cache` (`src/lwip_fixes.cpp`).
+  - M5GFX's alpha-PNG path takes an **unchecked** `heap_alloc_dma` line
+    buffer → null store when internal heap is low (HTTPS streams). Never
+    decode PNGs at render time: icons are pre-decoded into PSRAM sprites at
+    boot (`ui::preloadIcons`).
+  - ESP32-audioI2S TS reader busy-looped on an idle/dead socket → task-wdt
+    reset on a wifi drop mid-HLS; stream TLS handshake defaulted to 120 s.
+    Vendored-lib patches 3 + 4 (WAVEHOPPER-PATCHES.md).
+- **Internal heap is the scarce resource**, not PSRAM: a verified TLS
+  handshake (~50 KB peak) on top of a stream bring-up measured 2988 B free /
+  788 B max block. The metadata worker stays quiet while tuning + 5 s after
+  playback starts (`now_playing.cpp` quiet window). Watch `heap=`/`maxblk=`
+  in `status` and the fuzz summary when adding anything network-y.
+- **DNS right after audio bring-up** intermittently times out (lost first
+  queries, 3–6 s) — setup() prewarms the start station's host before audio
+  init. Root cause not pinned down (router DNS is fast; not IPv6/RDNSS).
 - **Realtime-paced streams** (Icecast/Airtime/AzuraCast) leave ~3 KB of
   buffer = every wifi hiccup is an audible gap. The lib has no prebuffer API:
   `player.cpp` suspends the lib's decode task ("PeriodicTask") across
@@ -162,6 +185,17 @@ in the root `CLAUDE.md`; the normative cross-player contract is
   manifest under `<copy>/content/firmware/m5cores3/`.
 - Everything observable ships to serial; assert against
   `scripts/serial_capture.py` output. Sound/touch/visuals need a human.
+- **Serial console** (`src/serial_cmd.cpp`, replies prefixed `@`): `status`,
+  `list`, `tune <idx|id>`, `next`/`prev`, `retune`, `vol <0-21>`,
+  `dns <host>`, `net`, `wifi-drop`, `reboot`. Drive it with
+  `scripts/wh_console.py` (`cmd …`, `boot --runs N` = boot→lock timing, `log`)
+  — one process owns the port; it handshakes first (after a long idle the
+  first bytes sent can be dropped). Run with `~/.platformio/penv/bin/python3`.
+- **Fuzzing**: `scripts/fuzz.py --minutes 30 --seed N --log <file>` — random
+  tunes / surf bursts / retunes / volume spam / wifi drops / reboots, checks
+  crashes, unexpected resets, UI + player hangs, lock-after-settle, heap
+  trend. Seeds replay the action sequence. Run a 30-min pass before any OTA
+  release that touches player, network or UI code.
 
 ## Release rule
 

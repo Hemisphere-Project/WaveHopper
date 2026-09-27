@@ -22,6 +22,7 @@
 #include "net.h"
 #include "now_playing.h"
 #include "player.h"
+#include "serial_cmd.h"
 #include "telemetry.h"
 #include "ui.h"
 
@@ -153,6 +154,24 @@ void setup() {
   }
   ui::bootLine("catalog: %u stations (content %.12s)", catalog::count(),
                catalog::contentVersion().c_str());
+  ui::preloadIcons();
+
+  // Warm lwIP's DNS cache for the station we're about to tune while the link
+  // is known-good (content/fw sync just used it). Measured on-device: lookups
+  // issued in the seconds after audio bring-up intermittently time out (6.3 s
+  // EAI_FAIL, or a 3 s lost first query), stalling the first tune.
+  int start = catalog::indexOfId(settings.lastStation);
+  if (start < 0) start = 0;
+  if (catalog::count()) {
+    const String& url = catalog::at(start).url;
+    String host = url.substring(url.indexOf("//") + 2);
+    host = host.substring(0, strcspn(host.c_str(), ":/?"));
+    IPAddress ip;
+    uint32_t t0 = millis();
+    bool ok = WiFi.hostByName(host.c_str(), ip) == 1;
+    log_i("prewarm dns %s -> %s in %lums", host.c_str(), ok ? ip.toString().c_str() : "FAIL",
+          (unsigned long)(millis() - t0));
+  }
 
   bool fellBack = false;
   // Audio output is always auto-detected: Module Audio if present (I2C probe),
@@ -165,13 +184,13 @@ void setup() {
   }
   ui::bootLine("audio: %s%s", audio_out::name(profile), fellBack ? " (fallback)" : "");
 
-  int start = catalog::indexOfId(settings.lastStation);
-  player::begin(profile, settings.volume, start >= 0 ? start : 0);
+  player::begin(profile, settings.volume, start);
 }
 
 void loop() {
   M5.update();
   player::tick();
+  serial_cmd::poll();
 
   // Settings overlay: modal — BtnB hold opens, taps route to it.
   if (ui::settingsOpen()) {

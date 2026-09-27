@@ -125,7 +125,19 @@ void playerTask(void*) {
       }
       const Station& s = catalog::at(tuneCmd.index);
       log_i("tuning [%d] %s -> %s", tuneCmd.index, s.id.c_str(), s.url.c_str());
-      if (!g_audio.connecttohost(s.url.c_str())) g_evtConnectFail = true;
+      // Split connect latency into DNS vs the lib's connect (TCP/TLS): the
+      // lookup here also warms lwIP's DNS cache the lib then hits.
+      uint32_t t0 = millis();
+      String host = s.url.substring(s.url.indexOf("//") + 2);
+      host = host.substring(0, strcspn(host.c_str(), ":/?"));
+      IPAddress ip;
+      bool dnsOk = WiFi.hostByName(host.c_str(), ip) == 1;
+      uint32_t t1 = millis();
+      bool ok = g_audio.connecttohost(s.url.c_str());
+      log_i("tune timing [%d] dns=%lums (%s) connect=%lums %s", tuneCmd.index,
+            (unsigned long)(t1 - t0), dnsOk ? ip.toString().c_str() : "FAIL",
+            (unsigned long)(millis() - t1), ok ? "ok" : "FAILED");
+      if (!ok) g_evtConnectFail = true;
     }
     g_audio.loop();  // all lib networking happens here
     vTaskDelay(1);
@@ -234,6 +246,10 @@ void tuneTo(int index) {
   if (index < 0 || index >= (int)catalog::count()) return;
   if (index == g_current && g_state == PlayerState::Playing) return;  // settled in place
   manualTune(index);
+}
+
+void retune() {
+  if (g_current >= 0) manualTune(g_current);
 }
 
 void setVolume(uint8_t v) {

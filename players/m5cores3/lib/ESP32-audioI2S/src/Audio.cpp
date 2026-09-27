@@ -340,6 +340,7 @@ Audio::Audio(uint8_t i2sPort) {
     mutex_audioTaskIsDecoding = xSemaphoreCreateMutex();
 
     clientsecure.setInsecure();
+    clientsecure.setHandshakeTimeout(8); // WAVEHOPPER patch 3: seconds; Arduino default 120
     m_i2s_items.i2s_num = i2sPort; // i2s port number
 }
 // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
@@ -4506,7 +4507,10 @@ chunkFinished:
             info(*this, evt_info, "buffer filled in %d ms", filltime);
         }
     }
-    if (m_pwsst.f_nextRound) { goto nextRound; }
+    // WAVEHOPPER patch 4: f_nextRound stays set until the segment's content
+    // length is reached, so mid-segment with no bytes available this spun (dead socket → task watchdog reset; live
+    // socket → busy-wait starving core 0). Loop only while data flows.
+    if (m_pwsst.f_nextRound && availableBytes) { goto nextRound; }
 exit:
     return;
 }

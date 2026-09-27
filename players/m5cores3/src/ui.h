@@ -22,6 +22,9 @@ void bootLine(const char* fmt, ...);
 
 // Rebuild + push the card. np may carry empty strings (falls back to ICY
 // title from the snapshot, then a generic on-air marker).
+// Decode every station icon once into PSRAM (call after catalog::load, while
+// internal heap is plentiful — before any stream starts).
+void preloadIcons();
 void render(const PlayerSnapshot& snap, const NowPlaying& np);
 
 // Transient overlays (tick() restores the card when they expire).

@@ -6,3 +6,4 @@ sdkconfig.defaults
 sdkconfig.m5stack-cores3*
 dependencies.lock
 src/idf_component.yml
+__pycache__/
