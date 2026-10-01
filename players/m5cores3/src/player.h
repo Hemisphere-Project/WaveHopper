@@ -13,7 +13,7 @@ enum class PlayerState : uint8_t { Idle, Tuning, Playing, AllFailed, WifiLost };
 struct PlayerSnapshot {
   PlayerState state = PlayerState::Idle;
   int stationIndex = -1;
-  uint8_t volume = 12;
+  uint8_t volume = 21;
   uint32_t generation = 0;  // bumps on any visible change — cheap UI dirty flag
   uint32_t buffered = 0;      // stream buffer fill (bytes) — UI gauge
   uint32_t bufferTarget = 0;  // current adaptive prebuffer target

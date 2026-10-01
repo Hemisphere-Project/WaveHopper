@@ -25,7 +25,7 @@ void load(WhSettings& s) {
     s.wifiForgotten = p.isKey("ssid") && s.ssid.isEmpty();
     s.pass = p.getString("pass", "");
     s.lastStation = p.getString("last_st", "");
-    s.volume = p.getUChar("vol", 12);
+    s.volume = p.getUChar("vol", 21);
     uint8_t aout = p.getUChar("aout", 0);
     s.audioOut = aout <= 3 ? static_cast<AudioOutSetting>(aout) : AudioOutSetting::Auto;
     s.brightness = p.getUChar("bright", 200);

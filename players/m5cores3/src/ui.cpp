@@ -686,6 +686,7 @@ void bootScreen() {
   d.setTextDatum(top_center);
   d.setTextColor(COL_ACCENT, COL_BG);
   d.drawString("Waverz\xC2\xB7net", W / 2, 20);
+#if WH_HAS_TOUCH  // a tap target — button boards open settings with B
   for (int i = 0; i < 8; ++i) {
     float a = i * (float)PI / 4;
     d.fillCircle(kGearCX + lroundf(cosf(a) * kGearR),
@@ -693,6 +694,7 @@ void bootScreen() {
   }
   d.fillCircle(kGearCX, kGearCY, kGearR - 1, COL_DIM);
   d.fillCircle(kGearCX, kGearCY, 3, COL_BG);
+#endif
   d.drawFastHLine(20, 82, W - 40, COL_LINE);
 
   d.setFont(&F_SMALL);

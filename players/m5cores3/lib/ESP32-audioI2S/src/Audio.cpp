@@ -442,6 +442,8 @@ void Audio::setDefaults() {
     m_f_metadata = false;
     m_f_tts = false;
     m_f_firstCall = true;       // InitSequence for processWebstream and processLocalFile
+    m_tspp.reset();             // WAVEHOPPER patch 8: new stream → forget TS PIDs
+    m_playlistBuff.reset();     // WAVEHOPPER patch 7: the previous stream's last segment is no resume point
     m_cat.firstCall = true;     // InitSequence for calculateAudioTime
     m_pplM3U8.firstCall = true; // InitSequence for parsePlaylist_M3U8
     m_f_firstPlayCall = true;   // InitSequence for playAudioData
@@ -3452,6 +3454,7 @@ i2swrite:
 
     if (!(m_plCh.err == ESP_OK || m_plCh.err == ESP_ERR_TIMEOUT)) goto exit;
     m_validSamples -= m_plCh.i2s_bytesConsumed / BYTES_PER_FRAME;
+    i2sFramesOut = i2sFramesOut + m_plCh.i2s_bytesConsumed / BYTES_PER_FRAME; // WAVEHOPPER patch 5
     m_plCh.count += m_plCh.i2s_bytesConsumed / 2;
     if (m_validSamples <= 0) {
         m_validSamples = 0;
@@ -3951,7 +3954,13 @@ ps_ptr<char> Audio::parsePlaylist_M3U8() {
         }
         if (!f_haveRedirection) {
             accomplish_m3u8_url();
-            prepare_first_m3u8_url(m_playlistBuff);
+            // WAVEHOPPER patch 7: a refreshed media playlist that no longer
+            // lists the last segment we played means segments were skipped
+            // (refresh came too late for the live window) or the playlist is
+            // stale — playback resumes at its first entry = an audible jump.
+            if (prepare_first_m3u8_url(m_playlistBuff) == 0 && m_playlistBuff.valid() && m_linesWithURL.size())
+                AUDIO_LOG_WARN("WH-HLS continuity lost: %s not in refreshed playlist (%u entries, first %s)", m_playlistBuff.get(), (unsigned)m_linesWithURL.size(),
+                               m_linesWithURL[0].get());
             vector_clear_and_shrink(m_playlistContent);
         }
     }
@@ -5634,6 +5643,7 @@ int Audio::sendBytes(uint8_t* data, size_t len) {
         uint32_t dt = micros() - t0;
         decodeBusyUs = decodeBusyUs + dt;
         if (dt > decodeMaxUs) decodeMaxUs = dt;
+        decodeCalls = decodeCalls + 1;
     }
     bytesDecoded = len - m_sbyt.bytesLeft;
     //-----------------------------------------------------------------
@@ -6716,9 +6726,9 @@ bool Audio::ts_parsePacket(uint8_t* packet, uint8_t* packetStart, uint8_t* packe
 
     (void)PAYLOAD_SIZE; // suppress [-Wunused-variable]
 
-    if (packet == NULL) {
+    if (packet == NULL) { // new segment (HTTP response) of the same stream
         if (log) AUDIO_LOG_WARN("parseTS reset");
-        m_tspp.reset();
+        m_tspp.resetPES(); // WAVEHOPPER patch 8: keep the PIDs (full reset: setDefaults)
         return true;
     }
 
@@ -6775,8 +6785,7 @@ bool Audio::ts_parsePacket(uint8_t* packet, uint8_t* packetStart, uint8_t* packe
     if (PID == 0) {
         // Program Association Table (PAT) - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
         if (log) AUDIO_LOG_DEBUG("PAT");
-        m_tspp.pidNumber = 0;
-        m_tspp.pidOfAAC = 0;
+        m_tspp.pidNumber = 0; // WAVEHOPPER patch 8: pidOfAAC survives a PAT (the PMT updates it)
 
         int startOfProgramNums = 8;
         int lengthOfPATValue = 4;
@@ -7864,6 +7873,8 @@ void Audio::audioTaskWrapper(void* param) {
 volatile uint32_t Audio::i2sUnderruns = 0; // WAVEHOPPER patch 5
 volatile uint32_t Audio::decodeBusyUs = 0;
 volatile uint32_t Audio::decodeMaxUs = 0;
+volatile uint32_t Audio::decodeCalls = 0;
+volatile uint32_t Audio::i2sFramesOut = 0;
 
 void Audio::audioTask() {
     while (m_f_audioTaskIsRunning) {

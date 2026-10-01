@@ -10,7 +10,7 @@ struct WhSettings {
   String ssid;
   String pass;
   String lastStation;
-  uint8_t volume = 12;       // 0..21 (ESP32-audioI2S scale)
+  uint8_t volume = 21;       // 0..21 (ESP32-audioI2S scale), default = max
   AudioOutSetting audioOut = AudioOutSetting::Auto;
   uint8_t brightness = 200;  // 0..255
   // Credentials were explicitly forgotten (ssid key present but empty): no

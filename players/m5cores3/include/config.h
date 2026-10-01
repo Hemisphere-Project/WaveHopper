@@ -91,7 +91,7 @@
 // ---------------------------------------------------------------------------
 // NVS (Preferences namespace "wh"):
 //   ssid    str   wifi network            pass   str   wifi password
-//   last_st str   station id to auto-play vol    uchar 0..21 (default 12)
+//   last_st str   station id to auto-play vol    uchar 0..21 (default 21 = max)
 //   aout    uchar 0 auto | 1 internal | 2 rca | 3 module   (default 0)
 //   bright  uchar display brightness 0..255 (default 200)
 //   portal  uchar one-shot: open the Wi-Fi setup portal on next boot

@@ -60,7 +60,7 @@ uint32_t g_lowAccumMs = 0, g_lowWindowStart = 0, g_lastLowTick = 0;
 uint32_t g_lastRebuffer = 0;
 uint32_t g_playCushion = 0;  // bytes buffered when playback started
 uint32_t g_lastHealth = 0;
-uint8_t g_volume = 12;
+uint8_t g_volume = 21;
 bool g_volDirty = false;
 uint32_t g_volSaveAt = 0;
 uint32_t g_gen = 1;
@@ -403,18 +403,23 @@ void tick() {
           // decoder/output path can't keep up, not the network), codec CPU
           // share (dec, % of one core's wall time) and its worst single call.
           uint32_t under = Audio::i2sUnderruns, busyUs = Audio::decodeBusyUs;
-          uint32_t maxUs = Audio::decodeMaxUs;
+          uint32_t maxUs = Audio::decodeMaxUs, calls = Audio::decodeCalls;
+          uint32_t outFrames = Audio::i2sFramesOut;
+          Audio::decodeCalls = 0;
+          Audio::i2sFramesOut = 0;
           Audio::i2sUnderruns = 0;
           Audio::decodeBusyUs = 0;
           Audio::decodeMaxUs = 0;
           log_i("[buf] now=%lu min=%lu target=%lu cons=%.1fKB/s arriv=%.1fKB/s "
-                "rssi=%d sleep=%d heap=%lu maxblk=%lu under=%lu dec=%.0f%% max=%.1fms",
+                "rssi=%d sleep=%d heap=%lu maxblk=%lu under=%lu dec=%.0f%% max=%.1fms "
+                "frames=%lu out=%.0fHz",
                 (unsigned long)bufNow, (unsigned long)minBuf,
                 (unsigned long)(g_targets.empty() ? 0 : g_targets[g_current]),
                 consKBs, arrivKBs, WiFi.RSSI(), (int)WiFi.getSleep(),
                 (unsigned long)ESP.getFreeHeap(),
                 (unsigned long)ESP.getMaxAllocHeap(), (unsigned long)under,
-                busyUs / (dt * 10000.0f), maxUs / 1000.0f);
+                busyUs / (dt * 10000.0f), maxUs / 1000.0f, (unsigned long)calls,
+                outFrames / dt);
           minBuf = UINT32_MAX;
           lastBuf = bufNow;
         }

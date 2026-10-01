@@ -205,6 +205,14 @@ typedef struct _tspp { // used in ts_parsePacket
         // Default-initialize alles neu (inklusive Array)
         *this = _tspp{};
     }
+    // WAVEHOPPER patch 8: per-segment reset — PES byte accounting only. The
+    // PAT/PMT PIDs belong to the stream, not the segment: segments may (LYL
+    // does) carry audio packets BEFORE their first PAT/PMT, and a full reset
+    // dropped them as "unknown PID" (~3 AAC frames every 2 s segment).
+    void resetPES() {
+        PES_DataLength = 0;
+        fillData = 0;
+    }
 } tspp_t;
 
 struct pwst_t { // used in processWebStream

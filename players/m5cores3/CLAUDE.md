@@ -200,6 +200,11 @@ in the root `CLAUDE.md`; the normative cross-player contract is
     (no change), pooling faad2's ~50 KB/frame of PSRAM scratch allocations
     (no change). The 44.1→48 kHz resampler is kept (works; ES8388 untested
     at 44.1). Headroom is thin: The Lot ≈ 73% codec + post-processing.
+- **HLS/TS (both boards):** a cushion that drains slowly while `out=` is
+  exactly 48000 Hz means bytes are lost on the way in — compare per-segment
+  demuxed payload with ffmpeg (`-c copy -f adts`). LYL's "chunk jumps" were
+  lib patch 8 (TS PIDs forgotten per segment; LYL puts audio before PAT/PMT).
+  `WH-HLS continuity lost` in the log = segments skipped at the playlist level.
 - Wi-Fi join race (both boards): while an unreachable stored network is
   being retried, `disconnect()+begin()` is rejected ("sta is connecting,
   cannot set config") and the OLD network keeps going. Always switch

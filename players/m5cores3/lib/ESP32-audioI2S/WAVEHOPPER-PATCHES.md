@@ -58,6 +58,28 @@ is skipped while all gains are 0 dB (identity filter). WaveHopper calls
 `enableAnalysis(false)` and never sets a tone. Measured on the Fire (classic
 ESP32): ~10 points of the decode core; AAC stations underran without it.
 
+### 7. HLS continuity warning  ✅
+`parsePlaylist_M3U8()`: when a refreshed media playlist no longer lists the
+last segment played, `prepare_first_m3u8_url()` silently resumes at its first
+entry (= segments skipped, or a stale playlist replayed). Now logged once per
+event: `WH-HLS continuity lost: …`. Silent in normal operation.
+(Patch 5 also counts `decodeCalls` and `i2sFramesOut` → `frames=` / `out=Hz`
+in the `[buf]` line: decoded frames vs the real playback clock.)
+
+### 8. TS: keep the audio PID across HLS segments  ✅ FIXED (LYL "chunk jumps")
+Each segment's HTTP response re-ran `ts_parsePacket(NULL)` = `m_tspp.reset()`,
+forgetting the PAT/PMT PIDs, and every PAT also zeroed `pidOfAAC`. LYL's
+segments start with **8 audio packets (PID 0x100) before their PAT/PMT** —
+all dropped as "unknown PID": ~1.2 KB ≈ 3 AAC frames (~70 ms) lost every
+2.04 s segment = audible jumps, and the cushion drained ~2 %/min (fewer
+bytes in than the clock plays out). Found by emulating `ts_parsePacket`
+byte-for-byte in Python against downloaded segments vs an ffmpeg-style
+PUSI-driven demux: stock lost 2.32 %, patched is byte-identical. Fix:
+per-segment reset clears only the PES accounting (`tspp_t::resetPES()`), the
+full reset moved to `setDefaults()` (new stream), and a PAT no longer zeroes
+`pidOfAAC` (the PMT updates it). Measured on device: per-segment payload now
+matches ffmpeg, LYL cushion holds, 0 underruns. Worth upstreaming.
+
 ### 2. Diagnostics (`#ifdef WH_TS_DIAG`, off by default)
 `src/Audio.cpp` — kept (compiled out) for the next misbehaving TS/HLS station:
 - `ts_parsePacket()`: PMT stream discovery + the "PES not found" packet dump.
