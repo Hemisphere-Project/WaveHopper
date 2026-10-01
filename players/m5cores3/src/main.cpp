@@ -81,6 +81,11 @@ void setup() {
   cfg.internal_spk = false;  // audio_out owns the amp — keep M5.Speaker off I2S
   cfg.internal_mic = false;  // keep ES7210 off the shared pins
   M5.begin(cfg);
+#ifdef WH_PIN_DAC_SPEAKER
+  // Unused 8-bit DAC speaker: pin its amp input low (floating = audible hum).
+  pinMode(WH_PIN_DAC_SPEAKER, OUTPUT);
+  digitalWrite(WH_PIN_DAC_SPEAKER, LOW);
+#endif
 
   whnvs::load(settings);
   ui::begin(settings.brightness);
@@ -115,6 +120,7 @@ void setup() {
   uint32_t retryAt = millis() + WH_WIFI_TIMEOUT_MS;
   while (!whwifi::isConnected() || ui::settingsOpen()) {
     M5.update();
+    serial_cmd::poll();  // boot-safe subset: bench wifi provisioning (wifi-join)
     auto t = M5.Touch.getDetail();
     if (ui::settingsOpen()) {
       settingsPump();
@@ -185,6 +191,7 @@ void setup() {
   ui::bootLine("audio: %s%s", audio_out::name(profile), fellBack ? " (fallback)" : "");
 
   player::begin(profile, settings.volume, start);
+  serial_cmd::setReady();
 }
 
 void loop() {

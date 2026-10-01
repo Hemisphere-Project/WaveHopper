@@ -10,31 +10,14 @@
 #include "catalog.h"
 #include "config.h"
 #include "font_vt323.h"
+#include "ui_internal.h"
 
-namespace {
-
-constexpr int W = 320, H = 240;
-constexpr int MARQUEE_X = 8, MARQUEE_W = W - 16, MARQUEE_H = 30;
-constexpr int MARQUEE_Y1 = 150, MARQUEE_Y2 = 184;  // title line, subtitle line
-constexpr int MARQUEE_GAP = 60;
-
-// Web player's default (Dark) skin palette — style.css :root.
-constexpr uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b) {
-  return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
-}
-constexpr uint16_t COL_BG = rgb565(0x0a, 0x0a, 0x0a);      // --bg
-constexpr uint16_t COL_FG = rgb565(0xe8, 0xe8, 0xe8);      // --fg
-constexpr uint16_t COL_DIM = rgb565(0x66, 0x66, 0x66);     // muted labels/hints
-constexpr uint16_t COL_LINE = rgb565(0x2a, 0x2a, 0x2a);    // borders/dividers
-constexpr uint16_t COL_ACCENT = rgb565(0xff, 0xf2, 0x05);  // --accent (yellow) for chrome
-constexpr uint16_t COL_PANEL = rgb565(0x16, 0x16, 0x16);   // row/panel fill
-// per-station accent (accent-fg = COL_BG, like the web) comes from color565.
-
+// Fonts are defined HERE only (see ui_internal.h for why).
+namespace ui::detail {
 const lgfx::GFXfont& F_SMALL = whfonts::VT323_20;
-const lgfx::GFXfont& F_MED = whfonts::VT323_24;   // metadata (title + subtitle)
-const lgfx::GFXfont& F_BIG = whfonts::VT323_34;   // station name
+const lgfx::GFXfont& F_MED = whfonts::VT323_24;
+const lgfx::GFXfont& F_BIG = whfonts::VT323_34;
 
-// Page header: accent title + underline. Returns the y below it for content.
 int drawHeader(LovyanGFX& d, const char* title) {
   d.setFont(&F_BIG);
   d.setTextSize(1);
@@ -44,6 +27,43 @@ int drawHeader(LovyanGFX& d, const char* title) {
   d.drawFastHLine(12, 44, W - 24, COL_LINE);
   return 54;
 }
+
+void drawRow(LovyanGFX& d, int y, const char* label, const char* value) {
+  d.fillRoundRect(12, y, W - 24, 34, 6, COL_PANEL);
+  d.setFont(&F_MED);
+  d.setTextColor(COL_FG, COL_PANEL);
+  d.setTextDatum(middle_left);
+  d.drawString(label, 24, y + 18);
+  if (value) {
+    d.setTextColor(COL_ACCENT, COL_PANEL);
+    d.setTextDatum(middle_right);
+    d.drawString(value, W - 24, y + 18);
+  }
+}
+
+void drawSoftKeys(LovyanGFX& d, const char* a, const char* b, const char* c) {
+  // The Fire's three buttons sit under x ≈ 68 / 160 / 252.
+  static constexpr int kX[3] = {W / 2 - 92, W / 2, W / 2 + 92};
+  const char* labels[3] = {a, b, c};
+  d.fillRect(0, SOFTKEY_Y, W, H - SOFTKEY_Y, COL_BG);
+  d.setFont(&F_SMALL);
+  d.setTextSize(1);
+  d.setTextDatum(middle_center);
+  for (int i = 0; i < 3; ++i) {
+    if (!labels[i] || !*labels[i]) continue;
+    d.setTextColor(COL_DIM, COL_BG);
+    d.drawString(labels[i], kX[i], SOFTKEY_Y + 10);
+  }
+}
+}  // namespace ui::detail
+
+namespace {
+
+using namespace ui::detail;
+
+constexpr int MARQUEE_X = 8, MARQUEE_W = W - 16, MARQUEE_H = 30;
+constexpr int MARQUEE_Y1 = 150, MARQUEE_Y2 = 184;  // title line, subtitle line
+constexpr int MARQUEE_GAP = 60;
 
 M5Canvas g_card(&M5.Display);  // full card, rebuilt on change, pushed whole
 
@@ -376,20 +396,6 @@ void drawBottomButton(const char* label) {
   d.drawRoundRect(W / 2 - 90, 198, 180, 34, 8, COL_LINE);
   d.setTextColor(COL_FG, COL_PANEL);
   d.drawString(label, W / 2, 215);
-}
-
-// A tappable full-width row with a label and an optional right-aligned value.
-void drawRow(LovyanGFX& d, int y, const char* label, const char* value) {
-  d.fillRoundRect(12, y, W - 24, 34, 6, COL_PANEL);
-  d.setFont(&F_MED);
-  d.setTextColor(COL_FG, COL_PANEL);
-  d.setTextDatum(middle_left);
-  d.drawString(label, 24, y + 18);
-  if (value) {
-    d.setTextColor(COL_ACCENT, COL_PANEL);
-    d.setTextDatum(middle_right);
-    d.drawString(value, W - 24, y + 18);
-  }
 }
 
 void drawSettingsMain() {

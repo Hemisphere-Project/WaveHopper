@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Non-interactive serial capture for the CoreS3 (USB-CDC needs DTR asserted).
+"""Non-interactive serial capture for the M5 firmware (CoreS3 USB-CDC or Fire UART).
 
 Unlike `pio device monitor`, works without a TTY — usable from scripts and AI
 agents. Prints whatever the device sends for --seconds, optionally resetting
 it first so you capture a full boot.
 
 Usage:
-  python3 scripts/serial_capture.py [--port /dev/ttyACM0] [--seconds 30] [--reset]
+  python3 scripts/serial_capture.py [--port /dev/ttyACM0|/dev/ttyUSB0] [--seconds 30] [--reset]
 """
 
 import argparse
@@ -25,7 +25,16 @@ def main() -> int:
                     help='pulse RTS/DTR to reset the board before capturing')
     args = ap.parse_args()
 
-    with serial.Serial(args.port, args.baud, timeout=0.5) as port:
+    # Fire = UART bridge (DTR->GPIO0, RTS->EN): never hold DTR there — GPIO0
+    # is Module Audio's MCLK. CoreS3 = USB-CDC: DTR must be asserted.
+    uart = 'ttyUSB' in args.port or 'usbserial' in args.port or 'SLAB' in args.port
+    # Open with both lines asserted (bridge transistors cancel = no reset),
+    # then drop RTS before DTR — the other order passes through RTS-only = EN
+    # low = an unintended reset on the bridge.
+    port = serial.Serial(args.port, args.baud, timeout=0.5)
+    port.rts = False
+    port.dtr = not uart
+    with port:
         if args.reset:
             # esptool hard-reset sequence for the USB-JTAG bridge: RTS drives
             # EN only while DTR is LOW (the coupled-transistor circuit cancels
@@ -36,7 +45,7 @@ def main() -> int:
             port.rts = False
             time.sleep(0.2)
             port.reset_input_buffer()
-        port.dtr = True
+        port.dtr = not uart
         port.rts = False
 
         deadline = time.monotonic() + args.seconds

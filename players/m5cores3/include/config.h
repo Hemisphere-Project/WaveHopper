@@ -1,8 +1,10 @@
-// WaveHopper CoreS3 — build-time configuration.
+// WaveHopper M5 firmware — build-time configuration (board facts: board.h).
 // The cross-player contract (endpoints, manifest schemas, sync algorithm) is
 // normative in docs/CONTENT-API.md; the values here must match it.
 
 #pragma once
+
+#include "board.h"
 
 // ---------------------------------------------------------------------------
 // Authoritative host. The firmware makes VERIFIED TLS requests to this host
@@ -11,12 +13,14 @@
 // setInsecure() internally) — a documented, accepted trade-off.
 #define WH_CONTENT_HOST "waverz.net"
 
-// Content pack for this player (equality sync on manifest contentVersion).
+// Content pack (equality sync on manifest contentVersion). Every board reads
+// the m5cores3 pack — the firmware channel below is what's per-board.
 #define WH_CONTENT_MANIFEST_PATH "/content/m5cores3/manifest.json"
 #define WH_CONTENT_BASE_PATH     "/content/m5cores3/"
 
-// Firmware OTA pointer (update iff remote `build` > WH_FW_BUILD).
-#define WH_FIRMWARE_MANIFEST_PATH "/content/firmware/m5cores3/manifest.json"
+// Firmware OTA pointer (update iff remote `build` > WH_FW_BUILD), one channel
+// per board — the manifest's `board` must equal WH_BOARD_ID.
+#define WH_FIRMWARE_MANIFEST_PATH "/content/firmware/" WH_BOARD_ID "/manifest.json"
 
 // Now-playing metadata, shared with every other player.
 #define WH_NOW_PLAYING_PATH "/api/now-playing.php?id="
@@ -36,15 +40,7 @@
 #define WH_FS_STAGING_DIR "/content/.staging"
 
 // ---------------------------------------------------------------------------
-// Audio output profiles — I2S pin sets on the CoreS3 M-Bus (see CLAUDE.md for
-// the chip-level facts). MCLK -1 = unused; NEVER default MCLK to 0: passing 0
-// to Audio::setPinout routes MCLK onto GPIO0 (only the Module Audio profile
-// deliberately uses GPIO7 for MCLK).
-//
-//                          BCLK  LRCK  DOUT  MCLK
-#define WH_PINS_INTERNAL    { 34,   33,   13,  -1 }   // AW88298 amp (BCK-clocked)
-#define WH_PINS_RCA         {  7,    0,   13,  -1 }   // Module13.2 RCA (PCM5102A)
-#define WH_PINS_MODULE      {  0,    6,   13,   7 }   // Module Audio (ES8388, MCLK mandatory)
+// Audio output profiles: I2S pin sets per board live in board.h.
 
 // Internal-bus I2C addresses used by the audio path.
 #define WH_I2C_AW88298   0x36  // internal speaker amp

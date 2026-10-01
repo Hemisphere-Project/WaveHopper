@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Drive the CoreS3 over its USB-serial command console (src/serial_cmd.cpp).
+"""Drive the M5 firmware over its serial command console (src/serial_cmd.cpp).
+
+Ports: CoreS3 = /dev/ttyACM0 (USB-CDC, the default), Fire = /dev/ttyUSB0.
 
 One process owns the port: it logs everything the device prints and sends
 commands in between. Replies from the console start with '@'.
@@ -24,13 +26,35 @@ import time
 import serial
 
 
+def is_uart_bridge(port: str) -> bool:
+    """Fire (CP210x/CH9102 UART bridge) vs CoreS3 (native USB-CDC)."""
+    return 'ttyUSB' in port or 'usbserial' in port or 'SLAB' in port
+
+
+def open_port(port: str) -> serial.Serial:
+    """Open without resetting, lines in the board's idle state.
+
+    USB-CDC (CoreS3) needs DTR asserted or the device's Serial stays silent.
+    A UART bridge (Fire) wires DTR->GPIO0 / RTS->EN through the auto-reset
+    transistors: DTR asserted pulls GPIO0 low = fights Module Audio's MCLK
+    (GPIO0 on the Fire), so both lines stay released there.
+
+    Order matters on the bridge: the kernel opens the tty with BOTH lines
+    asserted (the transistors cancel — no reset); dropping DTR first would
+    pass through RTS-only = EN low = a reset (it killed a wifi-join mid-way).
+    Drop RTS first (DTR-only just holds GPIO0 low for microseconds), then DTR.
+    """
+    ser = serial.Serial(port, 115200, timeout=0.2)
+    ser.rts = False
+    ser.dtr = not is_uart_bridge(port)
+    return ser
+
+
 class Device:
     """Background reader + line log; send() writes a command line."""
 
     def __init__(self, port: str, logfile: str | None = None):
-        self.ser = serial.Serial(port, 115200, timeout=0.2)
-        self.ser.dtr = True
-        self.ser.rts = False
+        self.ser = open_port(port)
         self.lines: list[tuple[float, str]] = []
         self.lock = threading.Lock()
         self.log = open(logfile, 'a', encoding='utf-8') if logfile else None
@@ -66,9 +90,7 @@ class Device:
         for _ in range(40):
             try:
                 self.ser.close()
-                self.ser = serial.Serial(port, 115200, timeout=0.2)
-                self.ser.dtr = True
-                self.ser.rts = False
+                self.ser = open_port(port)
                 return
             except serial.SerialException:
                 time.sleep(0.25)
@@ -79,7 +101,7 @@ class Device:
         time.sleep(0.1)
         self.ser.rts = False
         time.sleep(0.2)
-        self.ser.dtr = True
+        self.ser.dtr = not is_uart_bridge(self.ser.port)
 
     def mark(self) -> int:
         with self.lock:
@@ -142,7 +164,8 @@ def cmd_main(dev: Device, args) -> int:
         print('no answer from the console')
         return 1
     for c in args.commands:
-        for line in dev.ask(c) or ['(no reply)']:
+        # wifi-join verifies the link before replying (up to ~15 s).
+        for line in dev.ask(c, timeout=25.0 if c == 'wifi-join' else 12.0) or ['(no reply)']:
             print(line)
     return 0
 

@@ -6,6 +6,31 @@
 #include "config.h"
 #include "secrets.h"
 
+namespace {
+
+// Switch the STA to (ssid, pass) even while an association attempt is in
+// flight. A plain disconnect()+begin() loses that race: while the stored
+// network is out of range the stack keeps re-trying it, and the driver
+// rejects the new config mid-attempt ("sta is connecting, cannot set config",
+// ESP_ERR_WIFI_STATE) — begin() fails and the OLD network keeps retrying.
+// Measured on the Fire moved to a new site: wifi-join never took. Stop the
+// auto-retry first, then re-issue begin() until the driver accepts it.
+bool restartAssociation(const String& ssid, const String& pass) {
+  WiFi.setAutoReconnect(false);
+  WiFi.disconnect();
+  bool accepted = false;
+  uint32_t deadline = millis() + 4000;
+  while (!accepted && millis() < deadline) {
+    delay(150);
+    accepted = WiFi.begin(ssid.c_str(), pass.c_str()) != WL_CONNECT_FAILED;
+  }
+  WiFi.setAutoReconnect(true);  // the stack retries the NEW network from here on
+  if (!accepted) log_e("wifi: driver kept rejecting the new config for %s", ssid.c_str());
+  return accepted;
+}
+
+}  // namespace
+
 namespace whwifi {
 
 bool beginConnect(WhSettings& s) {
@@ -20,7 +45,7 @@ bool beginConnect(WhSettings& s) {
     log_e("no wifi credentials (secrets.h or the settings overlay)");
     return false;
   }
-  WiFi.begin(s.ssid.c_str(), s.pass.c_str());
+  restartAssociation(s.ssid, s.pass);  // also re-kicks after a failed join
   return true;
 }
 
@@ -48,9 +73,7 @@ bool syncClock(uint32_t timeoutMs) {
 
 bool joinNew(const String& ssid, const String& pass, uint32_t timeoutMs) {
   if (ssid.isEmpty()) return false;
-  WiFi.disconnect();
-  delay(100);
-  WiFi.begin(ssid.c_str(), pass.c_str());
+  if (!restartAssociation(ssid, pass)) return false;
   uint32_t deadline = millis() + timeoutMs;
   while (WiFi.status() != WL_CONNECTED && millis() < deadline) delay(100);
   bool ok = WiFi.status() == WL_CONNECTED;
@@ -80,9 +103,7 @@ void maintain(const WhSettings& s) {
   lastKick = now;
   log_w("wifi down %lus — re-kicking %s", (unsigned long)((now - downSince) / 1000),
         s.ssid.c_str());
-  WiFi.disconnect();  // begin() mid-attempt is rejected (ESP_ERR_WIFI_STATE)
-  delay(100);
-  WiFi.begin(s.ssid.c_str(), s.pass.c_str());
+  restartAssociation(s.ssid, s.pass);  // begin() mid-attempt is rejected otherwise
 }
 
 }  // namespace whwifi

@@ -47,8 +47,8 @@ void checkAndUpdate() {
   String sha256 = (const char*)(doc["sha256"] | "");
   uint32_t size = doc["size"] | 0;
 
-  if (board != "m5cores3") {
-    log_e("fw: manifest board '%s' mismatch", board.c_str());
+  if (board != WH_BOARD_ID) {
+    log_e("fw: manifest board '%s' mismatch (ours " WH_BOARD_ID ")", board.c_str());
     return;
   }
   if (build <= WH_FW_BUILD || url.isEmpty() || size == 0 || sha256.length() != 64) {
@@ -97,6 +97,19 @@ void checkAndUpdate() {
     size_t got = stream.readBytes(buf, min((uint32_t)sizeof(buf), remaining));
     if (got == 0) continue;
     idleSince = millis();
+    // First block: refuse an image built for another chip before a single
+    // byte reaches flash. esp_image_header_t: magic 0xE9 at 0, chip_id (u16
+    // LE) at 12. A 4 KB read always covers it; a short first read is held
+    // to the same check (got >= 14 or bust).
+    if (remaining == size) {
+      uint16_t chip = got >= 14 ? (uint16_t)(buf[12] | (buf[13] << 8)) : 0xFFFF;
+      if (got < 14 || buf[0] != 0xE9 || chip != WH_IMAGE_CHIP_ID) {
+        log_e("fw: image chip id %u != ours %u (or bad header) — refusing", chip,
+              (unsigned)WH_IMAGE_CHIP_ID);
+        ioError = true;
+        break;
+      }
+    }
     mbedtls_sha256_update(&sha, buf, got);
     if (Update.write(buf, got) != got) {
       ioError = true;

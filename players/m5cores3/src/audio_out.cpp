@@ -15,6 +15,7 @@ constexpr uint32_t kI2cFreq = 400000;
 // loop starts polling the touch controller — sequential access, no collisions.
 M5ModuleAudio g_moduleAudio;
 
+#if WH_HAS_INTERNAL_AMP
 void aw88298Write(uint8_t reg, uint16_t val) {
   // MSB first on the wire — matches M5Unified's aw88298_write_reg, which
   // bswap16s the value before writing. Verified against live register dumps.
@@ -63,6 +64,11 @@ void internalAmpDisable() {
   aw88298Write(0x04, 0x4000);
   M5.In_I2C.bitOff(WH_I2C_AW9523, 0x02, 0b00000100, kI2cFreq);
 }
+#else
+// No internal amp on this board (the Fire's DAC speaker is deliberately
+// unused) — nothing shares the I2S data line, nothing to keep dark.
+void internalAmpDisable() {}
+#endif  // WH_HAS_INTERNAL_AMP
 
 }  // namespace
 
@@ -70,6 +76,16 @@ namespace audio_out {
 
 AudioProfile resolve(AudioOutSetting setting, bool& fellBack) {
   fellBack = false;
+#if !WH_HAS_INTERNAL_AMP
+  // No usable built-in output: Module Audio when its helper answers, else the
+  // RCA module (a dumb PCM5102A — unprobeable, so it's the blind default).
+  (void)setting;
+  if (M5.In_I2C.scanID(WH_I2C_MODAUDIO)) {
+    log_i("auto: Module Audio detected at 0x33");
+    return AudioProfile::ModuleAudio;
+  }
+  return AudioProfile::Rca;
+#endif
   switch (setting) {
     case AudioOutSetting::Internal:
       return AudioProfile::Internal;
@@ -92,10 +108,12 @@ AudioProfile resolve(AudioOutSetting setting, bool& fellBack) {
 
 AudioPins pins(AudioProfile p) {
   switch (p) {
-    case AudioProfile::Rca:         return AudioPins WH_PINS_RCA;
     case AudioProfile::ModuleAudio: return AudioPins WH_PINS_MODULE;
-    case AudioProfile::Internal:
-    default:                        return AudioPins WH_PINS_INTERNAL;
+#if WH_HAS_INTERNAL_AMP
+    case AudioProfile::Internal:    return AudioPins WH_PINS_INTERNAL;
+#endif
+    case AudioProfile::Rca:
+    default:                        return AudioPins WH_PINS_RCA;
   }
 }
 
@@ -111,8 +129,12 @@ const char* name(AudioProfile p) {
 bool init(AudioProfile p, uint32_t initialSampleRate) {
   switch (p) {
     case AudioProfile::Internal:
+#if WH_HAS_INTERNAL_AMP
       internalAmpEnable(initialSampleRate);
       return true;
+#else
+      return false;
+#endif
     case AudioProfile::Rca:
       // PCM5102A needs nothing; make sure the internal amp stays dark even
       // though it shares GPIO13 (it has no BCLK either, belt and braces).
@@ -121,8 +143,12 @@ bool init(AudioProfile p, uint32_t initialSampleRate) {
     case AudioProfile::ModuleAudio: {
       internalAmpDisable();  // shared GPIO13 data line — keep the amp dark
       // I2C-only begin: configures the ES8388, leaves I2S to ESP32-audioI2S.
-      // Prerequisite: the module's physical pin switch must be on B (CoreS3).
-      if (!g_moduleAudio.begin(Wire, 12, 11, WH_I2C_MODAUDIO, kI2cFreq)) {
+      // Prerequisite: the module's physical pin switch — B on the CoreS3,
+      // A (factory default) on the Fire.
+      const int sda = M5.getPin(m5::pin_name_t::in_i2c_sda);
+      const int scl = M5.getPin(m5::pin_name_t::in_i2c_scl);
+      const i2c_port_t inPort = (i2c_port_t)M5.In_I2C.getPort();
+      if (!g_moduleAudio.begin(Wire, sda, scl, WH_I2C_MODAUDIO, kI2cFreq)) {
         log_e("Module Audio codec init failed");
         return false;
       }
@@ -146,15 +172,16 @@ bool init(AudioProfile p, uint32_t initialSampleRate) {
         es8388Write(0x2A, 0x90);  // DACCONTROL20: right mixer = DAC only
         es8388Write(0x03, 0xFF);  // ADCPOWER: ADC + PGA + micbias all down
       }
-      // Wire (I2C0) and M5.In_I2C (I2C1) are two separate ESP32 I2C
-      // peripherals wired to the SAME physical pins (12/11). Wire.begin()
-      // above re-muxed those GPIOs onto I2C0, which silently detaches I2C1 —
-      // left attached, it corrupts every later In_I2C transaction (the touch
-      // controller runs on In_I2C and starts reading garbage coordinates).
-      // The codec needs Wire only for this one-shot register setup — release
-      // it and re-claim the pins for In_I2C now, before the UI loop starts.
+      // Wire (Arduino driver, I2C0) and M5.In_I2C (M5Unified's own driver)
+      // sit on the SAME physical pins — CoreS3: I2C1 on 12/11, Fire: even the
+      // same I2C0 port on 21/22. Wire.begin() above re-muxed those GPIOs to
+      // its own driver, which silently detaches In_I2C — left that way, every
+      // later In_I2C transaction is corrupt (on the CoreS3 the touch
+      // controller starts reading garbage coordinates). The codec needs Wire
+      // only for this one-shot register setup — release it and re-claim the
+      // pins for In_I2C now, before the UI loop starts.
       Wire.end();
-      M5.In_I2C.begin(I2C_NUM_1, 12, 11);
+      M5.In_I2C.begin(inPort, sda, scl);
       log_i("Module Audio (ES8388) initialized");
       return true;
     }
@@ -163,6 +190,11 @@ bool init(AudioProfile p, uint32_t initialSampleRate) {
 }
 
 void onSampleRate(AudioProfile p, uint32_t rate) {
+#if !WH_HAS_INTERNAL_AMP
+  (void)p;
+  (void)rate;
+}
+#else
   if (p != AudioProfile::Internal) return;
   // audioI2S restarts the I2S clock when the stream's real rate differs from
   // the current one. The clock interruption faults the AW88298 (SYSST.SWS
@@ -190,5 +222,6 @@ void onSampleRate(AudioProfile p, uint32_t rate) {
     log_i("AW88298 rate set %lu Hz", (unsigned long)rate);
   }
 }
+#endif  // WH_HAS_INTERNAL_AMP
 
 }  // namespace audio_out

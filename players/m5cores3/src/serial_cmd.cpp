@@ -7,11 +7,18 @@
 #include "catalog.h"
 #include "config.h"
 #include "player.h"
+#include "wh_nvs.h"
+#include "wh_wifi.h"
 
 namespace {
 
 char g_line[96];
 size_t g_len = 0;
+bool g_ready = false;  // player + catalog up (setReady) — else boot-safe only
+
+// Bench Wi-Fi provisioning: SSID and password are set by separate commands so
+// either may contain spaces (each takes the rest of its line verbatim).
+String g_wifiSsid, g_wifiPass;
 
 void reply(const char* fmt, ...) {
   char buf[200];
@@ -60,7 +67,42 @@ void run(char* line) {
 
   if (!strcmp(line, "help")) {
     reply("help status | list | tune <idx|id> | next | prev | retune | vol <0-21> | "
-          "dns <host> | net | wifi-drop | reboot");
+          "dns <host> | net | wifi-drop | wifi-ssid <ssid> | wifi-pass <pass> | "
+          "wifi-join | reboot");
+  } else if (!strcmp(line, "wifi-ssid")) {
+    if (!*arg || strlen(arg) > 32) return reply("err wifi-ssid <1..32 chars>");
+    g_wifiSsid = arg;
+    reply("ok wifi-ssid %s", arg);
+  } else if (!strcmp(line, "wifi-pass")) {
+    // Empty = open network. Never echoed back (the log may be shared).
+    if (strlen(arg) > 63) return reply("err wifi-pass <0..63 chars>");
+    g_wifiPass = arg;
+    reply("ok wifi-pass (%u chars)", (unsigned)strlen(arg));
+  } else if (!strcmp(line, "wifi-join")) {
+    // Same contract as the settings join: verify first, persist + reboot only
+    // on success (the boot path brings everything up cleanly on the new link).
+    if (g_wifiSsid.isEmpty()) return reply("err wifi-ssid first");
+    // Progress goes to the log only — a host waits for the ok/err '@' reply.
+    Serial.printf("joining %s ...\n", g_wifiSsid.c_str());
+    if (whwifi::joinNew(g_wifiSsid, g_wifiPass, 15000)) {
+      whnvs::saveWifi(g_wifiSsid, g_wifiPass);
+      reply("ok wifi-join %s — saved, rebooting", g_wifiSsid.c_str());
+      Serial.flush();
+      delay(50);
+      ESP.restart();
+    }
+    reply("err wifi-join %s failed — back to the stored network", g_wifiSsid.c_str());
+    WhSettings stored;
+    whnvs::load(stored);
+    whwifi::beginConnect(stored);
+  } else if (!g_ready && !strcmp(line, "status")) {
+    reply("status state=booting wifi=%d rssi=%d heap=%lu maxblk=%lu psram=%lu up=%lus "
+          "fw=%s+%d board=%s",
+          WiFi.status() == WL_CONNECTED ? 1 : 0, WiFi.RSSI(), (unsigned long)ESP.getFreeHeap(),
+          (unsigned long)ESP.getMaxAllocHeap(), (unsigned long)ESP.getFreePsram(),
+          (unsigned long)(millis() / 1000), WH_FW_VERSION, WH_FW_BUILD, WH_BOARD_ID);
+  } else if (!g_ready && strcmp(line, "net") && strcmp(line, "reboot") && *line) {
+    reply("err '%s' not available while booting", line);
   } else if (!strcmp(line, "status")) {
     status();
   } else if (!strcmp(line, "list")) {
@@ -125,6 +167,8 @@ void run(char* line) {
 }  // namespace
 
 namespace serial_cmd {
+
+void setReady() { g_ready = true; }
 
 void poll() {
   while (Serial.available() > 0) {

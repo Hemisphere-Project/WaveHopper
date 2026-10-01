@@ -40,7 +40,7 @@ void post(const Event& e) {
   if (id.isEmpty()) return;
   char body[220];
   snprintf(body, sizeof(body),
-           "{\"v\":1,\"id\":\"%s\",\"p\":\"m5cores3\",\"ev\":\"%s\",\"st\":\"%s\","
+           "{\"v\":1,\"id\":\"%s\",\"p\":\"" WH_BOARD_ID "\",\"ev\":\"%s\",\"st\":\"%s\","
            "\"app\":\"%s+%d\"}",
            id.c_str(), e.ev, e.st, WH_FW_VERSION, WH_FW_BUILD);
   int code = -1;
