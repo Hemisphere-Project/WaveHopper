@@ -188,7 +188,18 @@ in the root `CLAUDE.md`; the normative cross-player contract is
     PSRAM (`net::tlsMemInit`, public `mbedtls_platform_set_calloc_free`,
     `WH_TLS_IN_PSRAM`): HTTPS/HLS streams handshake in ~600 ms and verified
     API calls work mid-stream. (CoreS3 candidate, untested there.)
-  - Stock lwIP window (5760) — measured fine at 128–192 kbps from EU hosts.
+  - Stock lwIP window (5760) — measured fine at 128–256 kbps from EU hosts.
+  - **AAC is CPU-bound on core 1** (decode task "PeriodicTask"). Glitch
+    bursts with a FULL cushion = I2S underruns, not the network — read
+    `under=` / `dec=` in the `[buf]` line (lib patch 5) and `tasks` on the
+    console. Two fixes were both needed: lib patch 6 (no VU/spectrum/flat-EQ
+    per-sample work, ~10 points) and **flash QIO @ 80 MHz** in
+    `fire/platformio.ini` (PlatformIO's board json says DIO @ 40: faad2
+    executes from flash through the cache — The Lot's codec 87% → ~73%).
+    Measured dead ends: the `-mfix-esp32-psram-cache-issue` MEMW workaround
+    (no change), pooling faad2's ~50 KB/frame of PSRAM scratch allocations
+    (no change). The 44.1→48 kHz resampler is kept (works; ES8388 untested
+    at 44.1). Headroom is thin: The Lot ≈ 73% codec + post-processing.
 - Wi-Fi join race (both boards): while an unreachable stored network is
   being retried, `disconnect()+begin()` is rejected ("sta is connecting,
   cannot set config") and the OLD network keeps going. Always switch
@@ -236,7 +247,8 @@ in the root `CLAUDE.md`; the normative cross-player contract is
   `list`, `tune <idx|id>`, `next`/`prev`, `retune`, `vol <0-21>`,
   `dns <host>`, `net`, `wifi-drop`, `wifi-ssid <s>` / `wifi-pass <p>` /
   `wifi-join` (bench provisioning — also live in the boot wifi wait),
-  `portal`, `reboot`. Ports: CoreS3 `/dev/ttyACM0` (default), Fire
+  `portal`, `tasks` (per-task CPU % + core since the previous call),
+  `reboot`. Ports: CoreS3 `/dev/ttyACM0` (default), Fire
   `/dev/ttyUSB0` (`--port`). Drive it with
   `scripts/wh_console.py` (`cmd …`, `boot --runs N` = boot→lock timing, `log`)
   — one process owns the port; it handshakes first (after a long idle the

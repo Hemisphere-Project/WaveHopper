@@ -92,6 +92,16 @@ class Audio {
     AudioBuffer InBuff; // instance of input buffer
 
   public:
+    // WAVEHOPPER patch 5: output-health counters (read + reset by the sketch).
+    // i2sUnderruns: DMA buffers the I2S driver had to send without fresh data
+    // (on_send_q_ovf → auto_clear zeros = an audible gap). decodeBusyUs /
+    // decodeMaxUs: CPU time inside the codec's decode() (sum, worst call).
+    static volatile uint32_t i2sUnderruns;
+    static volatile uint32_t decodeBusyUs;
+    static volatile uint32_t decodeMaxUs;
+    // WAVEHOPPER patch 6: VU meter + spectrum analysis per sample (default on,
+    // as upstream). Off = getVUlevel()/spectrum stay at rest, less CPU.
+    void enableAnalysis(bool on) { m_f_analysis = on; }
     Audio(uint8_t i2sPort = I2S_NUM_0);
     ~Audio();
     std::mutex mutex_info; // mutex_info as member
@@ -448,6 +458,7 @@ class Audio {
     bool           m_f_continue = false;            // next m3u8 chunk is available
     bool           m_f_ts = true;                   // transport stream
     bool           m_f_m4aID3dataAreRead = false;   // has the m4a-ID3data already been read?
+    bool           m_f_analysis = true;             // WAVEHOPPER patch 6
     bool           m_f_psramFound = false;          // set in constructor, result of psramInit()
     bool           m_f_timeout = false;             //
     bool           m_f_audioTaskIsRunning = false;  //

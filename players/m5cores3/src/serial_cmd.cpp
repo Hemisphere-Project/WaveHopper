@@ -4,6 +4,8 @@
 #include <WiFi.h>
 #include <lwip/dns.h>
 
+#include <vector>
+
 #include "catalog.h"
 #include "config.h"
 #include "player.h"
@@ -39,6 +41,36 @@ int resolveStation(const char* arg) {
   return catalog::indexOfId(String(arg));
 }
 
+// Per-task CPU share since the previous `tasks` call (FreeRTOS run-time
+// stats): which task eats which core — e.g. what starves the decoder.
+void tasks() {
+  static std::vector<TaskStatus_t> prev;
+  static uint32_t prevTotal = 0;
+  UBaseType_t n = uxTaskGetNumberOfTasks() + 4;
+  std::vector<TaskStatus_t> cur(n);
+  uint32_t total = 0;
+  n = uxTaskGetSystemState(cur.data(), n, &total);
+  cur.resize(n);
+  uint32_t dTotal = total - prevTotal;  // run-time counter units (µs)
+  if (prev.empty() || !dTotal) {
+    reply("tasks baseline taken — run `tasks` again after a while");
+  } else {
+    for (auto& t : cur) {
+      uint32_t before = 0;
+      for (auto& p : prev)
+        if (p.xHandle == t.xHandle) before = p.ulRunTimeCounter;
+      uint32_t d = t.ulRunTimeCounter - before;
+      if (d * 1000ULL / dTotal < 5) continue;  // under 0.5% of one core
+      int core = (int)t.xCoreID;
+      reply("tasks %-14s core=%s prio=%u cpu=%.1f%%", t.pcTaskName,
+            core == 0 ? "0" : core == 1 ? "1" : "any", (unsigned)t.uxCurrentPriority,
+            d * 100.0 / dTotal);
+    }
+  }
+  prev = std::move(cur);
+  prevTotal = total;
+}
+
 void status() {
   PlayerSnapshot s = player::snapshot();
   const char* id = (s.stationIndex >= 0 && s.stationIndex < (int)catalog::count())
@@ -68,7 +100,7 @@ void run(char* line) {
   if (!strcmp(line, "help")) {
     reply("help status | list | tune <idx|id> | next | prev | retune | vol <0-21> | "
           "dns <host> | net | wifi-drop | wifi-ssid <ssid> | wifi-pass <pass> | "
-          "wifi-join | portal | reboot");
+          "wifi-join | portal | tasks | reboot");
   } else if (!strcmp(line, "wifi-ssid")) {
     if (!*arg || strlen(arg) > 32) return reply("err wifi-ssid <1..32 chars>");
     g_wifiSsid = arg;
@@ -112,6 +144,8 @@ void run(char* line) {
     reply("err '%s' not available while booting", line);
   } else if (!strcmp(line, "status")) {
     status();
+  } else if (!strcmp(line, "tasks")) {
+    tasks();
   } else if (!strcmp(line, "list")) {
     for (int i = 0; i < n; i++)
       reply("list %d %s %s", i, catalog::at(i).id.c_str(), catalog::at(i).url.c_str());

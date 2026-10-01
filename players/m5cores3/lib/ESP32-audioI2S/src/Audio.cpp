@@ -41,6 +41,12 @@ StaticTask_t __attribute__((unused)) xAudioTaskBuffer;
 StackType_t __attribute__((unused))  xAudioStack[AUDIO_STACK_SIZE];
 
 // weak default implementation - can be overridden by user
+// WAVEHOPPER patch 5: I2S TX queue overflow = the DMA ran out of fresh data.
+static bool IRAM_ATTR whOnI2sUnderrun(i2s_chan_handle_t, i2s_event_data_t*, void*) {
+    Audio::i2sUnderruns = Audio::i2sUnderruns + 1;
+    return false;
+}
+
 __attribute__((weak)) void audio_process_i2s(int32_t* outBuff, int16_t validSamples, bool* continueI2S) {
     // Default: do nothing. User can provide their own implementation to process audio data.
 }
@@ -3409,12 +3415,18 @@ void IRAM_ATTR Audio::playChunk() {
     if (m_plCh.count > 0) goto i2swrite; // Not all samples could be written to I2S during the last run
     audio_process_raw_samples(m_outBuff.get(), m_validSamples);
     //------------------------------------------------------------------------------------------
-    for (int i = 0; i < m_validSamples; i++) {
-        calculateVUlevel(&m_outBuff[i * 2]);
-        IIR_filter(&m_outBuff[i * 2]);
-        Gain(&m_outBuff[i * 2]);
+    { // WAVEHOPPER patch 6: skip per-sample work nobody consumes. A flat EQ
+      // (all 0 dB) is an identity filter; VU/spectrum feed only getVUlevel()
+      // and the spectrum API. On the classic ESP32 these cost ~35% of the
+      // decode core — AAC (62% codec) then underran the I2S DMA.
+        const bool eqFlat = m_audio_items.gain_ls_db == 0 && m_audio_items.gain_peq_db == 0 && m_audio_items.gain_hs_db == 0;
+        for (int i = 0; i < m_validSamples; i++) {
+            if (m_f_analysis) calculateVUlevel(&m_outBuff[i * 2]);
+            if (!eqFlat) IIR_filter(&m_outBuff[i * 2]);
+            Gain(&m_outBuff[i * 2]);
+        }
+        if (m_f_analysis) processSpectrum();
     }
-    processSpectrum();
     if (m_f_forceMono) stereo2mono(m_outBuff.get(), m_validSamples);
     //------------------------------------------------------------------------------------------
     if (m_f_output48KHz && m_i2s_items.sampleRate != 48000) {
@@ -5616,7 +5628,13 @@ int Audio::sendBytes(uint8_t* data, size_t len) {
     if (!m_f_decode_ready) return 0;                                        // find sync first
 
     //-----------------------------------------------------------------
-    res = m_decoder->decode(data, &m_sbyt.bytesLeft, m_outBuff.get());
+    { // WAVEHOPPER patch 5: codec CPU time (sum + worst frame)
+        uint32_t t0 = micros();
+        res = m_decoder->decode(data, &m_sbyt.bytesLeft, m_outBuff.get());
+        uint32_t dt = micros() - t0;
+        decodeBusyUs = decodeBusyUs + dt;
+        if (dt > decodeMaxUs) decodeMaxUs = dt;
+    }
     bytesDecoded = len - m_sbyt.bytesLeft;
     //-----------------------------------------------------------------
 
@@ -5819,6 +5837,11 @@ bool Audio::i2s_config() {
     if (result != ESP_OK) { // ESP_ERR_INVALID_ARG?
         AUDIO_LOG_ERROR("I2S channel: invalid argument");
         return false;
+    }
+    { // WAVEHOPPER patch 5: count DMA underruns (callbacks must precede enable)
+        i2s_event_callbacks_t cbs = {};
+        cbs.on_send_q_ovf = whOnI2sUnderrun;
+        i2s_channel_register_event_callback(m_i2s_tx_handle, &cbs, nullptr);
     }
 
     memset(&m_i2s_std_cfg, 0, sizeof(i2s_std_config_t));
@@ -7837,6 +7860,10 @@ void Audio::audioTaskWrapper(void* param) {
     Audio* audioRunner = static_cast<Audio*>(param);
     audioRunner->audioTask();
 }
+
+volatile uint32_t Audio::i2sUnderruns = 0; // WAVEHOPPER patch 5
+volatile uint32_t Audio::decodeBusyUs = 0;
+volatile uint32_t Audio::decodeMaxUs = 0;
 
 void Audio::audioTask() {
     while (m_f_audioTaskIsRunning) {

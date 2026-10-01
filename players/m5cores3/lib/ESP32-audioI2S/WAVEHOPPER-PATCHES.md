@@ -43,6 +43,21 @@ watchdog resets the device (`task_wdt: IDLE0 … CPU 0: wh_player`, backtrace in
 round actually had bytes; otherwise return to `loop()`. Check upstream before
 re-basing — the same pattern may exist in `processWebStreamHLS()`.
 
+### 5. Output-health counters  ✅
+`Audio::i2sUnderruns` (I2S `on_send_q_ovf` callback, registered right after
+`i2s_new_channel`: a DMA buffer went out without fresh data = an audible gap)
+and `Audio::decodeBusyUs` / `decodeMaxUs` (wall time inside the codec's
+`decode()`). Static, read + reset by the sketch — `player.cpp` prints them in
+its 10 s `[buf]` line as `under=`, `dec=` (% of one core) and `max=`.
+
+### 6. Skip per-sample work nobody consumes  ✅
+`playChunk()`: the VU meter + spectrum feeder (`calculateVUlevel`, float AGC
+with a divide per sample, PSRAM delay lines) and its 10 Hz FFT now run only
+when `enableAnalysis(true)` (default on, as upstream); the 3-biquad tone EQ
+is skipped while all gains are 0 dB (identity filter). WaveHopper calls
+`enableAnalysis(false)` and never sets a tone. Measured on the Fire (classic
+ESP32): ~10 points of the decode core; AAC stations underran without it.
+
 ### 2. Diagnostics (`#ifdef WH_TS_DIAG`, off by default)
 `src/Audio.cpp` — kept (compiled out) for the next misbehaving TS/HLS station:
 - `ts_parsePacket()`: PMT stream discovery + the "PES not found" packet dump.
