@@ -39,4 +39,10 @@ void drawRow(LovyanGFX& d, int y, const char* label, const char* value);
 constexpr int SOFTKEY_Y = H - 22;
 void drawSoftKeys(LovyanGFX& d, const char* a, const char* b, const char* c);
 
+// Modal settings UI owns the screen (card pushes, overlays, marquees pause).
+extern bool g_settingsOpen;
+// Push the station card back after a modal closes (no-op before the first
+// render — e.g. settings opened during the boot wifi wait).
+void restoreCard();
+
 }  // namespace ui::detail

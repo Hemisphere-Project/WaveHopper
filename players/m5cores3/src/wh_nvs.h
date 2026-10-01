@@ -13,6 +13,9 @@ struct WhSettings {
   uint8_t volume = 12;       // 0..21 (ESP32-audioI2S scale)
   AudioOutSetting audioOut = AudioOutSetting::Auto;
   uint8_t brightness = 200;  // 0..255
+  // Credentials were explicitly forgotten (ssid key present but empty): no
+  // fallback to the compiled-in secrets.h network — the portal takes over.
+  bool wifiForgotten = false;
 };
 
 namespace whnvs {
@@ -22,4 +25,10 @@ void saveLastStation(const String& id);
 void saveVolume(uint8_t v);
 void saveAudioOut(AudioOutSetting a);
 void saveBrightness(uint8_t b);
+// Clear the stored network (keeps an empty ssid key = wifiForgotten).
+void forgetWifi();
+// One-shot "open the Wi-Fi setup portal on next boot" (settings → phone
+// setup while playing: a clean boot runs the portal before the player).
+void setPortalOnBoot();
+bool takePortalOnBoot();  // reads AND clears it
 }  // namespace whnvs

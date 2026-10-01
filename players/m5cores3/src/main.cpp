@@ -1,11 +1,16 @@
-// WaveHopper CoreS3 firmware — boot sequencer + input/UI loop.
+// WaveHopper M5 firmware (CoreS3 touch / Fire buttons) — boot sequencer +
+// input/UI loop.
 //
-// Boot: display → FS → NVS → wifi (retries forever, interactive) → catalog →
+// Boot: display → FS → NVS → wifi (retries forever, interactive; the phone
+// setup portal opens by itself when there is no network to try) → catalog →
 // audio profile → player task → auto-play. Content sync + firmware OTA slot in
 // before catalog load. Playback policy: no play/pause — the supervisor keeps
-// something playing (retry once → skip → sweep). Controls: tap left/right =
-// prev/next station, bezel BtnA/BtnC = volume down/up; touch-hold the card or
-// hold BtnB (or tap the boot-screen gear) opens the modal settings overlay.
+// something playing (retry once → skip → sweep).
+// Controls, touch (CoreS3): tap left/right = prev/next, vertical drag = browse,
+//   bezel BtnA/BtnC = volume; hold the card / BtnB (or the boot gear) = settings.
+// Controls, buttons (Fire): A/C tap = prev/next, A/C hold = browse (tunes when
+//   released), B tap = volume mode (A/C = -/+), B hold = settings menu; hold B
+//   at power-on = straight into the Wi-Fi setup portal.
 
 #include <M5Unified.h>
 #include <LittleFS.h>
@@ -25,6 +30,7 @@
 #include "serial_cmd.h"
 #include "telemetry.h"
 #include "ui.h"
+#include "wifi_portal.h"
 
 static WhSettings settings;
 static AudioProfile profile = AudioProfile::Internal;
@@ -32,6 +38,45 @@ static uint32_t lastRenderedGen = 0;
 static uint32_t lastNpGen = 0;
 static int lastStationIndex = -1;
 
+static bool g_booting = true;           // until the player runs (setup() done)
+static bool g_portalRequested = false;  // settings asked for the portal during boot
+static int g_browseIdx = -1;            // >=0 while browsing the station toast
+static uint32_t g_browseCommitAt = 0;   // tune the browsed station after this
+
+// Settings closed with an action — shared by the touch overlay and the
+// button menu.
+static void applySettingsAction(ui::SettingsAction action) {
+  using A = ui::SettingsAction;
+  if (action == A::None) return;
+  settings.brightness = ui::settingsBrightness();
+  whnvs::saveBrightness(settings.brightness);
+  switch (action) {
+    case A::CloseAndReboot:
+      ESP.restart();
+      return;
+    case A::PhoneSetup:
+      // The portal needs the radio + heap to itself: during the boot wifi
+      // wait it runs right away, otherwise via a clean boot (before the player).
+      if (g_booting) {
+        g_portalRequested = true;
+        return;
+      }
+      whnvs::setPortalOnBoot();
+      ESP.restart();
+      return;
+    case A::ForgetWifi:
+      whnvs::forgetWifi();  // next boot: no credentials → portal
+      ESP.restart();
+      return;
+    default:
+      break;
+  }
+  // The wifi scan drops an in-progress association to get a clean scan —
+  // make sure the stored network is trying again once settings closes.
+  if (!whwifi::isConnected()) whwifi::beginConnect(settings);
+}
+
+#if WH_HAS_TOUCH
 // Modal settings pump: drag-scroll + tap routing. Shared by loop() and the
 // boot wifi wait — the wifi scan/join flow must be reachable BEFORE the first
 // connect, or a device moved to a new place can never be given its network.
@@ -64,16 +109,230 @@ static void settingsPump() {
         whwifi::beginConnect(settings);  // re-kick the stored network
         ui::settingsWifiResult(false);
       }
-    } else if (action != ui::SettingsAction::None) {
-      settings.brightness = ui::settingsBrightness();
-      whnvs::saveBrightness(settings.brightness);
-      if (action == ui::SettingsAction::CloseAndReboot) ESP.restart();
-      // The wifi scan drops an in-progress association to get a clean scan —
-      // make sure the stored network is trying again once settings closes.
-      if (!whwifi::isConnected()) whwifi::beginConnect(settings);
+    } else {
+      applySettingsAction(action);
     }
   }
 }
+
+// The gesture that opens settings (boot wait + playing screen).
+static bool settingsGesture() {
+  auto t = M5.Touch.getDetail();
+  return M5.BtnB.pressedFor(600) || (t.wasHold() && t.y < 240) ||
+         (g_booting && t.wasClicked() && ui::bootGearHit(t.x, t.y));
+}
+
+#else  // button board
+
+// Tap vs hold on a physical button. Tap is decided on RELEASE (so a hold can
+// mean something else); Hold fires once at the threshold, then Repeat every
+// repeatMs while still held (0 = no repeat).
+struct ButtonGesture {
+  enum Ev : uint8_t { None, Tap, Hold, Repeat };
+  m5::Button_Class& btn;
+  uint16_t holdMs, repeatMs;
+  bool armed = false, held = false;
+  uint32_t nextRepeat = 0;
+
+  Ev poll() {
+    uint32_t now = millis();
+    if (btn.wasPressed()) {
+      armed = true;
+      held = false;
+    }
+    if (!armed) return None;  // press began before we were watching
+    if (btn.isPressed()) {
+      if (!held && btn.pressedFor(holdMs)) {
+        held = true;
+        nextRepeat = now + repeatMs;
+        return Hold;
+      }
+      if (held && repeatMs && now >= nextRepeat) {
+        nextRepeat = now + repeatMs;
+        return Repeat;
+      }
+      return None;
+    }
+    armed = false;  // released
+    return held ? None : Tap;
+  }
+  void reset() { armed = held = false; }
+};
+
+// Button menu: A/C move (instantly on press, repeating on hold), B tap =
+// select, B hold = back.
+static void settingsPump() {
+  static ButtonGesture a{M5.BtnA, 400, 140}, b{M5.BtnB, 600, 0}, c{M5.BtnC, 400, 140};
+  auto ea = a.poll(), eb = b.poll(), ec = c.poll();
+  ui::SettingsAction action = ui::SettingsAction::None;
+  if (M5.BtnA.wasPressed() || ea == ButtonGesture::Hold || ea == ButtonGesture::Repeat)
+    action = ui::settingsKey(ui::MenuKey::Up);
+  else if (M5.BtnC.wasPressed() || ec == ButtonGesture::Hold || ec == ButtonGesture::Repeat)
+    action = ui::settingsKey(ui::MenuKey::Down);
+  else if (eb == ButtonGesture::Tap)
+    action = ui::settingsKey(ui::MenuKey::Select);
+  else if (eb == ButtonGesture::Hold)
+    action = ui::settingsKey(ui::MenuKey::Back);
+  applySettingsAction(action);
+}
+
+// A FRESH B hold (the tracker arms only on a press it saw): closing the menu
+// with a B hold must not re-open it while the button is still down.
+static bool settingsGesture() {
+  static ButtonGesture b{M5.BtnB, 700, 0};
+  return b.poll() == ButtonGesture::Hold;
+}
+#endif  // WH_HAS_TOUCH
+
+#if WH_HAS_TOUCH
+// Playing screen, touch. Returns true when it opened settings.
+static bool stationInput(const PlayerSnapshot& snap, const m5::touch_detail_t& t) {
+  // Settings: hold anywhere on the card ~0.5 s, or hold bezel BtnB.
+  if (settingsGesture()) {
+    ui::settingsShow(settings.audioOut, settings.brightness);
+    return true;
+  }
+
+  // Station controls, split by gesture:
+  //  - tap (either half) or horizontal flick → change station INSTANTLY, no list.
+  //  - vertical drag → browse the toast list; the tune commits when you settle.
+  static int dragBaseIdx = -1;
+  static bool dragging = false;
+  int n = (int)catalog::count();
+
+  if (t.isPressed() && t.y < 240 && n && !dragging && abs(t.distanceY()) > 32 &&
+      abs(t.distanceY()) > abs(t.distanceX())) {
+    dragging = true;  // vertical drag started → enter browse mode
+    dragBaseIdx = snap.stationIndex < 0 ? 0 : snap.stationIndex;
+    g_browseIdx = dragBaseIdx;
+  }
+  if (dragging) {
+    if (t.isPressed()) {
+      int idx = ((dragBaseIdx - t.distanceY() / 48) % n + n) % n;
+      if (idx != g_browseIdx) { g_browseIdx = idx; ui::stationToast(g_browseIdx); }
+      g_browseCommitAt = millis() + 600;
+    } else {
+      dragging = false;  // released — g_browseCommitAt below fires the tune
+    }
+  } else if (n) {
+    // Not a drag: instant prev/next on tap half or horizontal flick. y < 240
+    // keeps the bezel button strip (BtnA/B/C live at y >= 240) out of it —
+    // without the guard every volume press also registered as a tap here.
+    int step = 0;
+    if (t.wasFlicked() && t.y < 240 && abs(t.distanceX()) > 30 &&
+        abs(t.distanceX()) > abs(t.distanceY())) {
+      step = t.distanceX() < 0 ? 1 : -1;
+    } else if (t.wasClicked() && t.y < 240) {
+      step = t.x < 160 ? -1 : 1;
+    }
+    if (step != 0) {
+      int cur = snap.stationIndex < 0 ? 0 : snap.stationIndex;
+      player::tuneTo(((cur + step) % n + n) % n);
+    }
+  }
+  if (g_browseIdx >= 0 && !dragging && millis() > g_browseCommitAt) {
+    player::tuneTo(g_browseIdx);
+    g_browseIdx = -1;
+  }
+
+  // Bezel buttons: A = vol down, C = vol up. wasPressed (instant) + repeat on
+  // hold — wasClicked waits out a multi-click window and felt laggy.
+  static uint32_t volRepeatAt = 0;
+  int volStep = 0;
+  if (M5.BtnA.wasPressed()) volStep = -1;
+  if (M5.BtnC.wasPressed()) volStep = 1;
+  if ((M5.BtnA.pressedFor(400) || M5.BtnC.pressedFor(400)) && millis() > volRepeatAt) {
+    volRepeatAt = millis() + 150;
+    volStep = M5.BtnA.isPressed() ? -1 : 1;
+  }
+  if (volStep) {
+    uint8_t vol = snap.volume;
+    if (volStep < 0 && vol > 0) vol--;
+    if (volStep > 0 && vol < 21) vol++;
+    player::setVolume(vol);
+    ui::volumeOverlay(vol);
+  }
+  return false;
+}
+
+#else  // button board
+
+static void stepVolume(int dir, uint32_t overlayMs) {
+  uint8_t vol = player::snapshot().volume;
+  if (dir < 0 && vol > 0) vol--;
+  if (dir > 0 && vol < 21) vol++;
+  player::setVolume(vol);
+  ui::volumeOverlay(vol, overlayMs);
+}
+
+// Playing screen, buttons. A/C tap = prev/next (on release, so a hold can
+// browse instead); A/C hold = browse the toast, the tune commits ~0.6 s after
+// the last step; B tap = volume mode (A/C = -/+ on press, repeat on hold;
+// B again or 3 s idle leaves); B hold = settings. Returns true when it
+// opened settings.
+static bool stationInput(const PlayerSnapshot& snap, const m5::touch_detail_t&) {
+  constexpr uint32_t kVolModeMs = 3000;
+  static ButtonGesture a{M5.BtnA, 450, 220}, b{M5.BtnB, 700, 0}, c{M5.BtnC, 450, 220};
+  static bool volMode = false;
+  static uint32_t volModeUntil = 0;
+  const auto ea = a.poll(), eb = b.poll(), ec = c.poll();
+  const int n = (int)catalog::count();
+
+  if (eb == ButtonGesture::Hold) {
+    volMode = false;
+    g_browseIdx = -1;
+    ui::dismissOverlay();
+    ui::settingsShow(settings.audioOut, settings.brightness);
+    return true;
+  }
+  if (eb == ButtonGesture::Tap) {
+    volMode = !volMode;
+    if (volMode) {
+      volModeUntil = millis() + kVolModeMs;
+      ui::volumeOverlay(snap.volume, kVolModeMs);
+    } else {
+      ui::dismissOverlay();
+    }
+    return false;
+  }
+  if (volMode) {
+    int dir = 0;
+    if (M5.BtnA.wasPressed() || ea == ButtonGesture::Hold || ea == ButtonGesture::Repeat) dir = -1;
+    if (M5.BtnC.wasPressed() || ec == ButtonGesture::Hold || ec == ButtonGesture::Repeat) dir = 1;
+    if (dir) {
+      stepVolume(dir, kVolModeMs);
+      volModeUntil = millis() + kVolModeMs;
+    } else if (millis() > volModeUntil) {
+      volMode = false;  // the overlay expires on its own at the same moment
+    }
+    return false;
+  }
+  if (!n) return false;
+
+  const int cur = snap.stationIndex < 0 ? 0 : snap.stationIndex;
+  int step = 0, browse = 0;
+  if (ea == ButtonGesture::Tap) step = -1;
+  if (ec == ButtonGesture::Tap) step = 1;
+  if (ea == ButtonGesture::Hold || ea == ButtonGesture::Repeat) browse = -1;
+  if (ec == ButtonGesture::Hold || ec == ButtonGesture::Repeat) browse = 1;
+  if (step && g_browseIdx < 0) {
+    player::tuneTo(((cur + step) % n + n) % n);
+  } else if (step || browse) {
+    // A hold starts a browse at the playing station; taps during a browse
+    // keep stepping the list instead of tuning under it.
+    int from = g_browseIdx >= 0 ? g_browseIdx : cur;
+    g_browseIdx = ((from + (step ? step : browse)) % n + n) % n;
+    ui::stationToast(g_browseIdx);
+    g_browseCommitAt = millis() + 600;
+  }
+  if (g_browseIdx >= 0 && !M5.BtnA.isPressed() && !M5.BtnC.isPressed() &&
+      millis() > g_browseCommitAt) {
+    player::tuneTo(g_browseIdx);
+    g_browseIdx = -1;
+  }
+  return false;
+}
+#endif  // WH_HAS_TOUCH
 
 void setup() {
   Serial.begin(115200);  // HWCDC: Serial.print* needs this, log_* doesn't
@@ -108,31 +367,57 @@ void setup() {
   }
   content_sync::wipeStagingOnBoot();
 
+  // Hold B at power-on = straight into the setup portal (recovery path that
+  // needs no menu). Read before anything slow so a quick hold registers.
+  M5.update();
+  bool portalNow = M5.BtnB.isPressed() || whnvs::takePortalOnBoot();
+
   ui::bootLine("wifi: connecting ...");
   bool haveCreds = whwifi::beginConnect(settings);
-  if (!haveCreds) ui::bootLine("no wifi saved - tap gear to set up");
+  if (!haveCreds) portalNow = true;  // nothing to try: the phone setup it is
+#if !WH_HAS_TOUCH
+  ui::bootHint("hold B: settings");
+#endif
   // Wait for the link, but stay interactive: retry forever AND keep the
-  // settings overlay (hold the screen / BtnB) reachable so a new network can
-  // be joined right here. The stack auto-retries the association by itself
-  // (re-calling begin() mid-attempt is rejected with ESP_ERR_WIFI_STATE);
-  // settingsPump re-kicks it after the two things that stop it (a scan, a
-  // failed join). The periodic line is progress feedback only.
+  // settings UI (touch: hold the screen / gear; buttons: hold B) reachable so
+  // a new network can be joined right here. The stack auto-retries the
+  // association by itself (re-calling begin() mid-attempt is rejected with
+  // ESP_ERR_WIFI_STATE); settingsPump re-kicks it after the two things that
+  // stop it (a scan, a failed join). If the stored network stays unreachable
+  // for WH_PORTAL_AFTER_MS the phone portal opens by itself (with an idle
+  // timeout, so a router that was merely down still gets retried).
   uint32_t retryAt = millis() + WH_WIFI_TIMEOUT_MS;
+  uint32_t failSince = millis();
+  auto bootScreenBack = [&]() {
+    ui::bootScreen();
+#if !WH_HAS_TOUCH
+    ui::bootHint(haveCreds ? "hold B: settings" : "hold B: settings / wifi setup");
+#endif
+    ui::bootLine(haveCreds ? "wifi: connecting ..." : "no wifi saved - phone setup in settings");
+    retryAt = millis() + WH_WIFI_TIMEOUT_MS;
+  };
   while (!whwifi::isConnected() || ui::settingsOpen()) {
     M5.update();
     serial_cmd::poll();  // boot-safe subset: bench wifi provisioning (wifi-join)
-    auto t = M5.Touch.getDetail();
-    if (ui::settingsOpen()) {
+    if (g_portalRequested) {
+      g_portalRequested = false;
+      portalNow = true;
+    }
+    if (portalNow && !ui::settingsOpen()) {
+      portalNow = false;
+      // Returns only on cancel / idle timeout — a join saves + reboots.
+      wifi_portal::run(true, haveCreds ? WH_PORTAL_IDLE_MS : 0);
+      whwifi::beginConnect(settings);  // back to the stored network (if any)
+      failSince = millis();
+      bootScreenBack();
+    } else if (ui::settingsOpen()) {
       settingsPump();
-      if (!ui::settingsOpen()) {  // closed without joining — boot screen back
-        ui::bootScreen();
-        ui::bootLine(haveCreds ? "wifi: connecting ..."
-                               : "no wifi saved - tap gear to set up");
-        retryAt = millis() + WH_WIFI_TIMEOUT_MS;
-      }
-    } else if (M5.BtnB.pressedFor(600) || (t.wasHold() && t.y < 240) ||
-               (t.wasClicked() && ui::bootGearHit(t.x, t.y))) {
+      if (!ui::settingsOpen() && !g_portalRequested) bootScreenBack();
+    } else if (settingsGesture()) {
       ui::settingsShow(settings.audioOut, settings.brightness);
+    } else if (haveCreds && millis() - failSince > WH_PORTAL_AFTER_MS) {
+      ui::bootLine("wifi: %s unreachable - opening phone setup", settings.ssid.c_str());
+      portalNow = true;
     } else if (haveCreds && millis() > retryAt) {
       retryAt = millis() + WH_WIFI_TIMEOUT_MS;
       ui::bootLine("wifi: retrying %s ...", settings.ssid.c_str());
@@ -192,6 +477,7 @@ void setup() {
 
   player::begin(profile, settings.volume, start);
   serial_cmd::setReady();
+  g_booting = false;
 }
 
 void loop() {
@@ -231,75 +517,10 @@ void loop() {
     return;
   }
 
-  // Settings: hold anywhere on the card ~0.5 s, or hold bezel BtnB.
-  if (M5.BtnB.pressedFor(600) || (t.wasHold() && t.y < 240)) {
-    ui::settingsShow(settings.audioOut, settings.brightness);
+  PlayerSnapshot snap = player::snapshot();
+  if (stationInput(snap, t)) {  // true = settings just opened
     vTaskDelay(pdMS_TO_TICKS(5));
     return;
-  }
-
-  PlayerSnapshot snap = player::snapshot();
-
-  // Station controls, split by gesture:
-  //  - tap (either half) or horizontal flick → change station INSTANTLY, no list.
-  //  - vertical drag → browse the toast list; the tune commits when you settle.
-  static int browseIdx = -1;         // >=0 only during a vertical-drag browse
-  static uint32_t browseCommitAt = 0;
-  static int dragBaseIdx = -1;
-  static bool dragging = false;
-  int n = (int)catalog::count();
-
-  if (t.isPressed() && t.y < 240 && n && !dragging && abs(t.distanceY()) > 32 &&
-      abs(t.distanceY()) > abs(t.distanceX())) {
-    dragging = true;  // vertical drag started → enter browse mode
-    dragBaseIdx = snap.stationIndex < 0 ? 0 : snap.stationIndex;
-    browseIdx = dragBaseIdx;
-  }
-  if (dragging) {
-    if (t.isPressed()) {
-      int idx = ((dragBaseIdx - t.distanceY() / 48) % n + n) % n;
-      if (idx != browseIdx) { browseIdx = idx; ui::stationToast(browseIdx); }
-      browseCommitAt = millis() + 600;
-    } else {
-      dragging = false;  // released — browseCommitAt below fires the tune
-    }
-  } else if (n) {
-    // Not a drag: instant prev/next on tap half or horizontal flick. y < 240
-    // keeps the bezel button strip (BtnA/B/C live at y >= 240) out of it —
-    // without the guard every volume press also registered as a tap here.
-    int step = 0;
-    if (t.wasFlicked() && t.y < 240 && abs(t.distanceX()) > 30 &&
-        abs(t.distanceX()) > abs(t.distanceY())) {
-      step = t.distanceX() < 0 ? 1 : -1;
-    } else if (t.wasClicked() && t.y < 240) {
-      step = t.x < 160 ? -1 : 1;
-    }
-    if (step != 0) {
-      int cur = snap.stationIndex < 0 ? 0 : snap.stationIndex;
-      player::tuneTo(((cur + step) % n + n) % n);
-    }
-  }
-  if (browseIdx >= 0 && !dragging && millis() > browseCommitAt) {
-    player::tuneTo(browseIdx);
-    browseIdx = -1;
-  }
-
-  // Bezel buttons: A = vol down, C = vol up. wasPressed (instant) + repeat on
-  // hold — wasClicked waits out a multi-click window and felt laggy.
-  static uint32_t volRepeatAt = 0;
-  int volStep = 0;
-  if (M5.BtnA.wasPressed()) volStep = -1;
-  if (M5.BtnC.wasPressed()) volStep = 1;
-  if ((M5.BtnA.pressedFor(400) || M5.BtnC.pressedFor(400)) && millis() > volRepeatAt) {
-    volRepeatAt = millis() + 150;
-    volStep = M5.BtnA.isPressed() ? -1 : 1;
-  }
-  if (volStep) {
-    uint8_t vol = snap.volume;
-    if (volStep < 0 && vol > 0) vol--;
-    if (volStep > 0 && vol < 21) vol++;
-    player::setVolume(vol);
-    ui::volumeOverlay(vol);
   }
 
   snap = player::snapshot();
@@ -316,7 +537,7 @@ void loop() {
 
   // While browsing, the toast IS the feedback — rebuilding the card per step
   // (PNG decode from flash each time) caused visible input hitches.
-  if (browseIdx < 0 &&
+  if (g_browseIdx < 0 &&
       (snap.generation != lastRenderedGen || np.generation != lastNpGen) &&
       snap.stationIndex >= 0) {
     lastRenderedGen = snap.generation;
@@ -325,7 +546,7 @@ void loop() {
   }
 
   static uint32_t gaugeAt = 0;
-  if (browseIdx < 0 && millis() > gaugeAt) {
+  if (g_browseIdx < 0 && millis() > gaugeAt) {
     gaugeAt = millis() + 1000;
     if (snap.state == PlayerState::Playing) ui::bufferGauge(snap.buffered, snap.bufferTarget);
     ui::wifiMeter(0);  // reads RSSI itself; visible in every state incl. tuning

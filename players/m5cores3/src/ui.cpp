@@ -14,6 +14,8 @@
 
 // Fonts are defined HERE only (see ui_internal.h for why).
 namespace ui::detail {
+bool g_settingsOpen = false;
+
 const lgfx::GFXfont& F_SMALL = whfonts::VT323_20;
 const lgfx::GFXfont& F_MED = whfonts::VT323_24;
 const lgfx::GFXfont& F_BIG = whfonts::VT323_34;
@@ -133,9 +135,9 @@ bool g_haveCard = false;
 
 uint32_t g_overlayUntil = 0;  // volume bar or toast owns the screen until then
 
-// Settings overlay state
+#if WH_HAS_TOUCH
+// Settings overlay state (touch UI; button boards: ui_menu.cpp)
 enum class SettingsPage : uint8_t { Main, Stations, Wifi, WifiScan, WifiPassword };
-bool g_settingsOpen = false;
 SettingsPage g_page = SettingsPage::Main;
 uint8_t g_setBright = 200;
 std::vector<StationMeta> g_metas;  // stations page working copy
@@ -156,6 +158,7 @@ const char* const kKbRows[3][3] = {
     {"1234567890", "!#$%&*()+=", ":;,?/[]{}~"},  // symbols
 };
 constexpr int kKbCols = 10, kKbKeyW = 32, kKbKeyH = 30, kKbY0 = 116;
+#endif  // WH_HAS_TOUCH
 
 // Metadata: resolved two-line block (white title marquee + grey subtitle).
 String g_metaSub;
@@ -323,6 +326,7 @@ void buildCard() {
     g_card.drawString(msg.c_str(), W / 2, MARQUEE_Y1 + MARQUEE_H / 2);
   }
 
+#if WH_HAS_TOUCH
   // Nav hints.
   g_card.setFont(&F_SMALL);
   g_card.setTextColor(COL_DIM, COL_BG);
@@ -330,6 +334,10 @@ void buildCard() {
   g_card.drawString("<", 6, H - 6);  // clear of the bottom buffer gauge
   g_card.setTextDatum(bottom_right);
   g_card.drawString(">", W - 6, H - 6);
+#else
+  // What the three buttons do (hold A/C = browse, hold B = settings).
+  drawSoftKeys(g_card, "<", "vol", ">");
+#endif
 }
 
 void pushCard() {
@@ -388,6 +396,7 @@ void drawToast(int current) {
   d.endWrite();
 }
 
+#if WH_HAS_TOUCH
 void drawBottomButton(const char* label) {
   auto& d = M5.Display;
   d.setTextDatum(middle_center);
@@ -470,12 +479,16 @@ void drawSettingsWifi() {
   d.drawString(("ip:   " + WiFi.localIP().toString()).c_str(), 16, 82);
   d.drawString(("rssi: " + String(WiFi.RSSI()) + " dBm").c_str(), 16, 104);
 
+  // Two ways to join: type the password here (scan), or the phone portal.
   d.setFont(&F_MED);
   d.setTextDatum(middle_center);
-  d.fillRoundRect(W / 2 - 100, 128, 200, 42, 8, COL_PANEL);
-  d.drawRoundRect(W / 2 - 100, 128, 200, 42, 8, COL_ACCENT);
-  d.setTextColor(COL_ACCENT, COL_PANEL);
-  d.drawString("scan networks", W / 2, 149);
+  for (int i = 0; i < 2; ++i) {
+    int x = i ? W / 2 + 4 : 12;
+    d.fillRoundRect(x, 128, W / 2 - 16, 42, 8, COL_PANEL);
+    d.drawRoundRect(x, 128, W / 2 - 16, 42, 8, COL_ACCENT);
+    d.setTextColor(COL_ACCENT, COL_PANEL);
+    d.drawString(i ? "phone setup" : "scan + type", x + (W / 2 - 16) / 2, 149);
+  }
 
   drawBottomButton("BACK");
   d.endWrite();
@@ -631,6 +644,8 @@ void doWifiScan() {
   g_ssidScroll = 0;
 }
 
+#endif  // WH_HAS_TOUCH
+
 }  // namespace
 
 namespace ui {
@@ -706,6 +721,18 @@ void bootScreen() {
   d.setScrollRect(0, 90, W, H - 90);  // keep the header out of the scroll region
 }
 
+void bootHint(const char* text) {
+  // Pinned under the splash (above the scroll region), dim — e.g. "hold B: wifi setup".
+  auto& d = M5.Display;
+  d.fillRect(0, 62, W, 18, COL_BG);
+  d.setFont(&F_SMALL);
+  d.setTextDatum(top_center);
+  d.setTextColor(COL_DIM, COL_BG);
+  d.drawString(text, W / 2, 61);
+  d.setTextDatum(top_left);
+  d.setTextColor(COL_FG, COL_BG);
+}
+
 bool bootGearHit(int x, int y) {
   // Generous corner target around the drawn gear.
   return x >= kGearCX - 22 && y <= kGearCY + 22;
@@ -737,6 +764,7 @@ void render(const PlayerSnapshot& snap, const NowPlaying& np) {
 
 bool settingsOpen() { return g_settingsOpen; }
 
+#if WH_HAS_TOUCH
 void settingsShow(AudioOutSetting audioOut, uint8_t brightness) {
   (void)audioOut;  // audio output is auto-detected now; no manual selection
   g_settingsOpen = true;
@@ -784,10 +812,13 @@ SettingsAction settingsTouch(int x, int y) {
       return SettingsAction::None;
 
     case SettingsPage::Wifi:
-      if (y >= 128 && y <= 170 && x > W / 2 - 100 && x < W / 2 + 100) {
+      if (y >= 128 && y <= 170 && x < W / 2) {
         doWifiScan();
         g_page = SettingsPage::WifiScan;
         drawSettings();
+      } else if (y >= 128 && y <= 170) {
+        g_settingsOpen = false;
+        return SettingsAction::PhoneSetup;
       } else if (y > 190) {
         g_page = SettingsPage::Main;
         drawSettings();
@@ -889,17 +920,28 @@ void settingsWifiResult(bool ok) {
   d.drawString("connect failed - pick again", W / 2, 194);
 }
 
+SettingsAction settingsKey(MenuKey) { return SettingsAction::None; }  // button boards only
+#endif  // WH_HAS_TOUCH
+
 void stationToast(int currentIndex) {
   if (!g_haveCard) return;
   g_overlayUntil = millis() + 1200;
   drawToast(currentIndex);
 }
 
-void volumeOverlay(uint8_t vol) {
+void volumeOverlay(uint8_t vol, uint32_t holdMs) {
   if (!g_haveCard) return;
   if (millis() >= g_overlayUntil) pushCard();  // fresh card under the bar
-  g_overlayUntil = millis() + 1500;
+  g_overlayUntil = millis() + holdMs;
   drawVolumeBar(vol);
+#if !WH_HAS_TOUCH
+  drawSoftKeys(M5.Display, "-", "ok", "+");
+#endif
+}
+
+void dismissOverlay() {
+  if (!g_overlayUntil) return;
+  g_overlayUntil = 1;  // tick() restores the card on its next pass
 }
 
 void bufferGauge(uint32_t buffered, uint32_t target) {
@@ -938,3 +980,9 @@ void tick() {
 }
 
 }  // namespace ui
+
+namespace ui::detail {
+void restoreCard() {
+  if (g_haveCard) pushCard();
+}
+}  // namespace ui::detail

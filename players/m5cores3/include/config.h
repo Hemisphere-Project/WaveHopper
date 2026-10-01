@@ -53,6 +53,8 @@
 // Timing.
 #define WH_WIFI_TIMEOUT_MS    30000  // boot wifi connect budget
 #define WH_WIFI_REKICK_MS     20000  // runtime: re-begin association after this long down
+#define WH_PORTAL_AFTER_MS   120000  // boot: stored network unreachable this long → phone portal
+#define WH_PORTAL_IDLE_MS    180000  // …which closes again after this long with no phone on it
 #define WH_SNTP_TIMEOUT_MS    10000  // clock sync budget (TLS needs wall time)
 #define WH_TUNE_TIMEOUT_MS    15000  // connect→codec deadline per attempt
 // Startup cushion: most stations (Icecast/Airtime/AzuraCast) pace at exactly
@@ -92,6 +94,8 @@
 //   last_st str   station id to auto-play vol    uchar 0..21 (default 12)
 //   aout    uchar 0 auto | 1 internal | 2 rca | 3 module   (default 0)
 //   bright  uchar display brightness 0..255 (default 200)
+//   portal  uchar one-shot: open the Wi-Fi setup portal on next boot
+//   (ssid present but empty = credentials forgotten: no secrets.h fallback)
 
 #ifndef WH_FW_VERSION
 #define WH_FW_VERSION "0.0.0-dev"

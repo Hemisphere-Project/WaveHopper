@@ -17,6 +17,9 @@ void bootScreen();
 // True when (x,y) lands on the boot header's settings gear (top-right).
 bool bootGearHit(int x, int y);
 
+// Button devices: one-line hint pinned under the boot header (what B does).
+void bootHint(const char* text);
+
 // Boot status screen (scrolling text lines while the sequencer runs).
 void bootLine(const char* fmt, ...);
 
@@ -29,15 +32,28 @@ void render(const PlayerSnapshot& snap, const NowPlaying& np);
 
 // Transient overlays (tick() restores the card when they expire).
 void stationToast(int currentIndex);  // list of neighbors, ~2 s
-void volumeOverlay(uint8_t vol);
+// holdMs: how long the bar stays up (button devices hold it for the whole
+// volume mode and draw its soft keys). dismissOverlay() ends it early.
+void volumeOverlay(uint8_t vol, uint32_t holdMs = 1500);
+void dismissOverlay();
 
-// Modal settings overlay (BtnB hold). While open, main routes taps to
-// settingsTouch() and applies the returned action.
-enum class SettingsAction { None, Close, CloseAndReboot, ConnectWifi };
+// Modal settings UI (hold BtnB; touch: also hold the card / boot gear).
+// Touch boards: main routes taps to settingsTouch(). Button boards: main
+// routes A/B/C to settingsKey() — a list menu. Both return an action.
+enum class SettingsAction {
+  None,
+  Close,
+  CloseAndReboot,
+  ConnectWifi,  // touch keyboard: join settingsWifiSsid()/Password()
+  PhoneSetup,   // open the Wi-Fi setup portal (phone + QR codes)
+  ForgetWifi,   // clear stored credentials (next boot opens the portal)
+};
 bool settingsOpen();
 void settingsShow(AudioOutSetting audioOut, uint8_t brightness);
 SettingsAction settingsTouch(int x, int y);
 bool settingsScroll(int rows);        // drag-scroll the active list page
+enum class MenuKey : uint8_t { Up, Down, Select, Back };
+SettingsAction settingsKey(MenuKey k);
 uint8_t settingsBrightness();
 String settingsWifiSsid();            // credentials entered on the keyboard
 String settingsWifiPassword();

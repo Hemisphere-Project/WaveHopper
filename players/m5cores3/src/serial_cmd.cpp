@@ -68,7 +68,7 @@ void run(char* line) {
   if (!strcmp(line, "help")) {
     reply("help status | list | tune <idx|id> | next | prev | retune | vol <0-21> | "
           "dns <host> | net | wifi-drop | wifi-ssid <ssid> | wifi-pass <pass> | "
-          "wifi-join | reboot");
+          "wifi-join | portal | reboot");
   } else if (!strcmp(line, "wifi-ssid")) {
     if (!*arg || strlen(arg) > 32) return reply("err wifi-ssid <1..32 chars>");
     g_wifiSsid = arg;
@@ -95,6 +95,13 @@ void run(char* line) {
     WhSettings stored;
     whnvs::load(stored);
     whwifi::beginConnect(stored);
+  } else if (!strcmp(line, "portal")) {
+    // Same path as settings → phone setup while playing: clean boot → portal.
+    whnvs::setPortalOnBoot();
+    reply("ok portal — rebooting into wifi setup");
+    Serial.flush();
+    delay(50);
+    ESP.restart();
   } else if (!g_ready && !strcmp(line, "status")) {
     reply("status state=booting wifi=%d rssi=%d heap=%lu maxblk=%lu psram=%lu up=%lus "
           "fw=%s+%d board=%s",

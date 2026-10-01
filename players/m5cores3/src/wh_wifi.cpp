@@ -36,13 +36,16 @@ namespace whwifi {
 bool beginConnect(WhSettings& s) {
   WiFi.mode(WIFI_STA);  // radio up even without creds — the settings scan needs it
   WiFi.setSleep(false);  // latency matters more than power for a mains radio
-  if (s.ssid.isEmpty()) {
+  if (s.ssid.isEmpty() && !s.wifiForgotten) {  // first boot: seed from secrets.h
     s.ssid = WH_WIFI_SSID;
     s.pass = WH_WIFI_PASS;
     if (s.ssid != "your-ssid") whnvs::saveWifi(s.ssid, s.pass);
   }
   if (s.ssid.isEmpty() || s.ssid == "your-ssid") {
-    log_e("no wifi credentials (secrets.h or the settings overlay)");
+    log_e("no wifi credentials (secrets.h, settings, or the setup portal)");
+    WiFi.setAutoReconnect(false);  // stop re-trying whatever a failed join left behind
+    WiFi.disconnect();
+    WiFi.setAutoReconnect(true);
     return false;
   }
   restartAssociation(s.ssid, s.pass);  // also re-kicks after a failed join

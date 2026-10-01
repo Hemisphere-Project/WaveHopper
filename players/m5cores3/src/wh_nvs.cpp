@@ -21,7 +21,8 @@ namespace whnvs {
 
 void load(WhSettings& s) {
   withPrefs(true, [&](Preferences& p) {
-    s.ssid = p.getString("ssid", "");
+    s.ssid = p.isKey("ssid") ? p.getString("ssid", "") : String();
+    s.wifiForgotten = p.isKey("ssid") && s.ssid.isEmpty();
     s.pass = p.getString("pass", "");
     s.lastStation = p.getString("last_st", "");
     s.volume = p.getUChar("vol", 12);
@@ -52,6 +53,26 @@ void saveAudioOut(AudioOutSetting a) {
 
 void saveBrightness(uint8_t b) {
   withPrefs(false, [&](Preferences& p) { p.putUChar("bright", b); });
+}
+
+void forgetWifi() {
+  withPrefs(false, [&](Preferences& p) {
+    p.putString("ssid", "");
+    p.putString("pass", "");
+  });
+}
+
+void setPortalOnBoot() {
+  withPrefs(false, [&](Preferences& p) { p.putUChar("portal", 1); });
+}
+
+bool takePortalOnBoot() {
+  bool set = false;
+  withPrefs(false, [&](Preferences& p) {
+    set = p.getUChar("portal", 0) != 0;
+    if (set) p.remove("portal");
+  });
+  return set;
 }
 
 }  // namespace whnvs
