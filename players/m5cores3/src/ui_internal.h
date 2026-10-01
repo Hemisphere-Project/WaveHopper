@@ -33,12 +33,6 @@ int drawHeader(LovyanGFX& d, const char* title);
 // A full-width row with a label and an optional right-aligned value.
 void drawRow(LovyanGFX& d, int y, const char* label, const char* value);
 
-// Button devices: labels for the three physical buttons, centred over them
-// along the bottom edge (nullptr/"" = that button does nothing here). The
-// bar covers y >= SOFTKEY_Y.
-constexpr int SOFTKEY_Y = H - 22;
-void drawSoftKeys(LovyanGFX& d, const char* a, const char* b, const char* c);
-
 // Modal settings UI owns the screen (card pushes, overlays, marquees pause).
 extern bool g_settingsOpen;
 // Push the station card back after a modal closes (no-op before the first

@@ -9,6 +9,11 @@
 #include <HTTPClient.h>
 
 namespace net {
+// Boards with WH_TLS_IN_PSRAM: route mbedtls allocations ≥512 B to PSRAM
+// (public mbedtls_platform_set_calloc_free hook — no framework rebuild).
+// Call first thing in setup(), before any TLS. No-op elsewhere.
+void tlsMemInit();
+
 // True once wh_wifi::syncClock succeeded — verified TLS needs wall time.
 // When false, all whBegin() calls fail fast (streams still play, unverified).
 void setClockValid(bool valid);

@@ -17,8 +17,6 @@ void bootScreen();
 // True when (x,y) lands on the boot header's settings gear (top-right).
 bool bootGearHit(int x, int y);
 
-// Button devices: one-line hint pinned under the boot header (what B does).
-void bootHint(const char* text);
 
 // Boot status screen (scrolling text lines while the sequencer runs).
 void bootLine(const char* fmt, ...);

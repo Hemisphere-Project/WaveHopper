@@ -42,7 +42,38 @@ void initOnce() {
 }
 }  // namespace
 
+#if WH_TLS_IN_PSRAM
+// mbedtls allocator for boards whose internal heap can't hold a TLS session
+// next to a running stream (the Fire: ~50 KB left, a session wants ~50 KB
+// with ~17 KB contiguous record buffers). Record buffers, certs and big MPIs
+// (≥512 B) live in PSRAM; small hot allocations stay internal (handshake
+// math speed). Either region falls back to the other. Frees from both
+// allocators (anything handed out before the switch) are heap_caps_free-safe.
+extern "C" {
+#include <mbedtls/platform.h>
+}
+namespace {
+void* tlsCalloc(size_t n, size_t size) {
+  const size_t bytes = n * size;
+  if (n && bytes / n != size) return nullptr;  // overflow
+  void* p = nullptr;
+  if (bytes >= 512) p = heap_caps_calloc(n, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!p) p = heap_caps_calloc(n, size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (!p && bytes < 512) p = heap_caps_calloc(n, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  return p;
+}
+void tlsFree(void* p) { heap_caps_free(p); }
+}  // namespace
+#endif
+
 namespace net {
+
+void tlsMemInit() {
+#if WH_TLS_IN_PSRAM
+  mbedtls_platform_set_calloc_free(tlsCalloc, tlsFree);
+  log_i("net: mbedtls allocations >=512 B -> PSRAM");
+#endif
+}
 
 void setClockValid(bool valid) { g_clockValid = valid; }
 bool clockValid() { return g_clockValid; }
@@ -55,7 +86,14 @@ bool whBegin(const String& path, bool allowPlain) {
   // (-32512 alloc) while an HTTPS stream pins its own ~50 KB session. Below
   // these floors the handshake cannot succeed — skip cleanly instead of
   // churning mbedtls (fragmentation + crash risk).
+#if WH_TLS_IN_PSRAM
+  // TLS buffers live in PSRAM here (tlsMemInit): the internal floor only has
+  // to cover the socket, lwIP pbufs and the small handshake allocations.
+  bool tlsOk = g_clockValid && ESP.getFreePsram() >= 96000 && ESP.getFreeHeap() >= 24000 &&
+               ESP.getMaxAllocHeap() >= 8192;
+#else
   bool tlsOk = g_clockValid && ESP.getFreeHeap() >= 64000 && ESP.getMaxAllocHeap() >= 20000;
+#endif
   if (!tlsOk) {
     // Callers fetching public, display-only data (now-playing) may fall back
     // to plain HTTP: a socket needs a few KB, not ~50. Without it an HTTPS

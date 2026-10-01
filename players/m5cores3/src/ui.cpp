@@ -43,20 +43,6 @@ void drawRow(LovyanGFX& d, int y, const char* label, const char* value) {
   }
 }
 
-void drawSoftKeys(LovyanGFX& d, const char* a, const char* b, const char* c) {
-  // The Fire's three buttons sit under x ≈ 68 / 160 / 252.
-  static constexpr int kX[3] = {W / 2 - 92, W / 2, W / 2 + 92};
-  const char* labels[3] = {a, b, c};
-  d.fillRect(0, SOFTKEY_Y, W, H - SOFTKEY_Y, COL_BG);
-  d.setFont(&F_SMALL);
-  d.setTextSize(1);
-  d.setTextDatum(middle_center);
-  for (int i = 0; i < 3; ++i) {
-    if (!labels[i] || !*labels[i]) continue;
-    d.setTextColor(COL_DIM, COL_BG);
-    d.drawString(labels[i], kX[i], SOFTKEY_Y + 10);
-  }
-}
 }  // namespace ui::detail
 
 namespace {
@@ -334,9 +320,6 @@ void buildCard() {
   g_card.drawString("<", 6, H - 6);  // clear of the bottom buffer gauge
   g_card.setTextDatum(bottom_right);
   g_card.drawString(">", W - 6, H - 6);
-#else
-  // What the three buttons do (hold A/C = browse, hold B = settings).
-  drawSoftKeys(g_card, "<", "vol", ">");
 #endif
 }
 
@@ -721,18 +704,6 @@ void bootScreen() {
   d.setScrollRect(0, 90, W, H - 90);  // keep the header out of the scroll region
 }
 
-void bootHint(const char* text) {
-  // Pinned under the splash (above the scroll region), dim — e.g. "hold B: wifi setup".
-  auto& d = M5.Display;
-  d.fillRect(0, 62, W, 18, COL_BG);
-  d.setFont(&F_SMALL);
-  d.setTextDatum(top_center);
-  d.setTextColor(COL_DIM, COL_BG);
-  d.drawString(text, W / 2, 61);
-  d.setTextDatum(top_left);
-  d.setTextColor(COL_FG, COL_BG);
-}
-
 bool bootGearHit(int x, int y) {
   // Generous corner target around the drawn gear.
   return x >= kGearCX - 22 && y <= kGearCY + 22;
@@ -934,9 +905,6 @@ void volumeOverlay(uint8_t vol, uint32_t holdMs) {
   if (millis() >= g_overlayUntil) pushCard();  // fresh card under the bar
   g_overlayUntil = millis() + holdMs;
   drawVolumeBar(vol);
-#if !WH_HAS_TOUCH
-  drawSoftKeys(M5.Display, "-", "ok", "+");
-#endif
 }
 
 void dismissOverlay() {

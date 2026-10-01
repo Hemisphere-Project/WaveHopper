@@ -16,6 +16,7 @@
 #define WH_BOARD_NAME        "CoreS3"
 #define WH_HAS_TOUCH         1
 #define WH_HAS_INTERNAL_AMP  1
+#define WH_TLS_IN_PSRAM      0  // candidate (same starvation) — not yet bench-tested here
 
 // I2S pin sets on the CoreS3 M-Bus (chip-level facts in CLAUDE.md). MCLK -1 =
 // unused; NEVER default MCLK to 0: passing 0 to Audio::setPinout routes MCLK
@@ -36,6 +37,10 @@
 #define WH_BOARD_NAME        "Fire"
 #define WH_HAS_TOUCH         0
 #define WH_HAS_INTERNAL_AMP  0
+// mbedtls buffers (≥512 B) go to PSRAM — see net::tlsMemInit(). Without it
+// the classic ESP32 has ~50 KB internal heap left while playing: no HTTPS
+// stream (The Lot, LYL: -32512 at the handshake) and no verified API calls.
+#define WH_TLS_IN_PSRAM      1
 #define WH_PIN_DAC_SPEAKER   25  // held low: a floating DAC input hums in the speaker
 
 // Same M-Bus positions as the CoreS3 profiles, mapped through M5Unified's

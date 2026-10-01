@@ -336,6 +336,7 @@ static bool stationInput(const PlayerSnapshot& snap, const m5::touch_detail_t&) 
 
 void setup() {
   Serial.begin(115200);  // HWCDC: Serial.print* needs this, log_* doesn't
+  net::tlsMemInit();     // before anything can open a TLS session
   auto cfg = M5.config();
   cfg.internal_spk = false;  // audio_out owns the amp — keep M5.Speaker off I2S
   cfg.internal_mic = false;  // keep ES7210 off the shared pins
@@ -375,9 +376,6 @@ void setup() {
   ui::bootLine("wifi: connecting ...");
   bool haveCreds = whwifi::beginConnect(settings);
   if (!haveCreds) portalNow = true;  // nothing to try: the phone setup it is
-#if !WH_HAS_TOUCH
-  ui::bootHint("hold B: settings");
-#endif
   // Wait for the link, but stay interactive: retry forever AND keep the
   // settings UI (touch: hold the screen / gear; buttons: hold B) reachable so
   // a new network can be joined right here. The stack auto-retries the
@@ -390,9 +388,6 @@ void setup() {
   uint32_t failSince = millis();
   auto bootScreenBack = [&]() {
     ui::bootScreen();
-#if !WH_HAS_TOUCH
-    ui::bootHint(haveCreds ? "hold B: settings" : "hold B: settings / wifi setup");
-#endif
     ui::bootLine(haveCreds ? "wifi: connecting ..." : "no wifi saved - phone setup in settings");
     retryAt = millis() + WH_WIFI_TIMEOUT_MS;
   };

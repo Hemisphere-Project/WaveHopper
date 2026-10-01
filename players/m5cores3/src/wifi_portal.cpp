@@ -18,6 +18,7 @@ namespace {
 using namespace ui::detail;
 
 constexpr uint32_t kJoinTimeoutMs = 15000;
+constexpr int kCancelY = 228;  // touch boards: centre of the "cancel" target
 constexpr size_t kMaxNets = 24;
 const IPAddress kApIp(192, 168, 4, 1);
 
@@ -72,8 +73,18 @@ void drawScreen(bool cancellable) {
   d.setTextColor(COL_DIM, COL_BG);
   String creds = g_apSsid + "  key " + g_apPass + "  192.168.4.1";
   d.drawString(creds.c_str(), W / 2, QY + QW + 28);
+#if WH_HAS_TOUCH
+  // Touch has no physical B: a tappable cancel (button boards: B cancels).
+  if (cancellable) {
+    d.setFont(&F_SMALL);
+    d.setTextDatum(middle_center);
+    d.setTextColor(COL_DIM, COL_BG);
+    d.drawString("cancel", W / 2, kCancelY);
+  }
+#else
+  (void)cancellable;
+#endif
   d.endWrite();
-  drawSoftKeys(d, "", cancellable ? "cancel" : "", "");
   drawStatus("waiting for phone", COL_DIM);
 }
 
@@ -275,7 +286,7 @@ bool cancelPressed() {
   if (M5.BtnB.wasPressed()) return true;
 #if WH_HAS_TOUCH
   auto t = M5.Touch.getDetail();
-  if (t.wasClicked() && t.y >= SOFTKEY_Y - 12 && t.y < H && t.x > W / 2 - 60 &&
+  if (t.wasClicked() && t.y >= kCancelY - 22 && t.y < H && t.x > W / 2 - 60 &&
       t.x < W / 2 + 60)
     return true;
 #endif

@@ -1,5 +1,6 @@
 // Button-driven settings menu — boards without touch (the Fire).
-// A list per page: A = up, C = down, B tap = select, B hold = back/close.
+// A list per page: A = up, C = down, B tap = select, B hold = back/close
+// (no on-screen button hints — the selection highlight carries it).
 // The touch boards' settings overlay lives in ui.cpp; both speak the same
 // ui::SettingsAction to main.
 #include "ui.h"
@@ -101,16 +102,12 @@ void draw() {
   d.fillScreen(COL_BG);
   static const char* const kTitles[] = {"settings", "wifi", "stations", "about"};
   drawHeader(d, kTitles[(int)g_page]);
-  d.setFont(&F_SMALL);
-  d.setTextDatum(top_right);
-  d.setTextColor(COL_DIM, COL_BG);
-  d.drawString("hold B: back", W - 12, 18);
 
   int y0 = drawInfo(d, 52);
   std::vector<Row> r = rows();
   const bool compact = g_page == Page::Stations;
   const int rowH = compact ? 30 : 36;
-  const int visible = std::max(1, (SOFTKEY_Y - 4 - y0) / rowH);
+  const int visible = std::max(1, (H - 4 - y0) / rowH);
   if (g_sel < g_scroll) g_scroll = g_sel;
   if (g_sel >= g_scroll + visible) g_scroll = g_sel - visible + 1;
 
@@ -151,7 +148,6 @@ void draw() {
     snprintf(pos, sizeof(pos), "%d/%d", g_sel + 1, (int)r.size());
     d.drawString(pos, W - 12, 34 - 14);
   }
-  drawSoftKeys(d, "up", "ok", "down");
   d.endWrite();
 }
 
