@@ -1,12 +1,17 @@
-# CLAUDE.md — M5Stack CoreS3 player
+# CLAUDE.md — M5Stack player (CoreS3 + Fire)
 
-Working rules for AI agents developing this firmware. The repo-wide picture is
+Working rules for AI agents developing this firmware. One codebase, one
+binary per chip: **CoreS3 / CoreS3 SE** (ESP32-S3, touch, board id
+`m5cores3`) and **Fire** (classic ESP32 + 4 MB PSRAM, 3 buttons, board id
+`m5fire`). Board facts live in `include/board.h` (selected by compile target);
+`WH_HAS_TOUCH` splits the UI (touch overlay in `ui.cpp`, button menu in
+`ui_menu.cpp`). Basic/Gray are unsupported (no PSRAM). The repo-wide picture is
 in the root `CLAUDE.md`; the normative cross-player contract is
 `docs/CONTENT-API.md`.
 
 ## Scope fence
 
-- Work **only inside `players/m5cores3/`**. Never edit `content/`,
+- Work **only inside `players/m5cores3/`** (both boards, incl. `fire/`). Never edit `content/`,
   `players/web/`, or `tools/build.py` from a firmware session.
 - Anything that would change a URL, schema, or field consumed from the server
   is a contract change: it goes through `docs/CONTENT-API.md` first (append-only
@@ -20,12 +25,14 @@ in the root `CLAUDE.md`; the normative cross-player contract is
   `/content/m5cores3/*`, `/content/firmware/m5cores3/*`,
   `/api/now-playing.php?id=<id>`, `/api/telemetry.php` (anonymous listener
   stats, fire-and-forget on its own worker). Audio streams go to arbitrary
-  hosts (unverified — accepted trade-off). **Exception:** now-playing (only)
+  hosts (unverified — accepted trade-off). Firmware channel is per board:
+  `/content/firmware/<WH_BOARD_ID>/*`; every board reads the `m5cores3` pack. **Exception:** now-playing (only)
   falls back to plain `http://` when a verified handshake can't be afforded
   (`net::whBegin(path, allowPlain)`) — never extend that to sync/OTA/telemetry.
 - Content sync: **equality** on `contentVersion`, per-file sha256 diff,
   staged atomic commit — implemented in `content_sync.cpp`; don't reinvent.
-- Firmware: update iff remote `build` (integer) **>** compiled `WH_FW_BUILD`.
+- Firmware: update iff remote `build` (integer) **>** compiled `WH_FW_BUILD`,
+  manifest `board` == `WH_BOARD_ID`, image header chip id == ours.
 - Ignore unknown JSON keys; reject `..`/absolute manifest paths; if remote
   content `schemaVersion` > supported, skip sync but still check firmware.
 - The API responds **chunked** over HTTP/1.1: parse via `getString()`, never
@@ -40,7 +47,17 @@ in the root `CLAUDE.md`; the normative cross-player contract is
   `~/.platformio/penv-py313/bin/platformio`.
 - ESP32-audioI2S and M5Module-Audio are pinned by git tag/commit (registry
   copies are stale). M5Unified and M5GFX move **together**.
-- Compile gate: `pio run` (both envs). No device CI — every OTA-published
+- **The Fire is a separate PlatformIO project (`fire/`) with its own
+  `core_dir` (`~/.platformio-fire`).** pioarduino's hybrid compile keeps ONE
+  custom-libs slot per core, keyed on sdkconfig + MCU: any other-chip or
+  no-custom-sdkconfig build in the CoreS3's core reinstalls the stock
+  framework (wiping the ~15-min 16 KB-window rebuild) — and vice versa. Never
+  add a Fire env to `./platformio.ini`. Shared platform/flags/version/libs:
+  `wh-common.ini` (both projects include it).
+- First hybrid compile may die with `No module named
+  'SCons.Tool.FortranCommon'`: its second stage swapped `tool-scons` under the
+  running build. The libs were built — just re-run.
+- Compile gate: `pio run -e m5stack-cores3` here AND `pio run` in `fire/`. No device CI — every OTA-published
   binary gets hand-tested on the in-hand device first.
 - `custom_sdkconfig` (lwIP TCP window, see below) puts pioarduino in
   **hybrid compile**: the framework libs are rebuilt from ESP-IDF once
@@ -144,7 +161,8 @@ in the root `CLAUDE.md`; the normative cross-player contract is
   worker tasks (`now_playing.cpp`) or at boot, never on the input loop; the
   one shared verified client is mutex-guarded (`net.cpp`); no keep-alive (the
   server drops idle connections and a parked session pins ~50 KB).
-- **An HTTPS *stream* pins its own ~50 KB TLS session for its whole runtime**,
+- **An HTTPS *stream* pins its own ~50 KB TLS session for its whole runtime**
+  (CoreS3 — the Fire keeps it in PSRAM, see below),
   leaving too little internal heap for a second verified handshake — measured:
   now-playing/telemetry fail with `-32512` at 61 KB free. `net::whBegin` skips
   those polls below 64 KB free / 20 KB max-block (a clean skip, not a churn).
@@ -152,13 +170,38 @@ in the root `CLAUDE.md`; the normative cross-player contract is
   carry an `m5Url` so the pack `url` is `http://` (no stream TLS session) —
   see CONTENT-API.md `m5Url`. Stations that must stay HTTPS (AzuraCast, HLS)
   get now-playing over the plain-HTTP fallback; telemetry is skipped for them.
+- **Fire (classic ESP32, D0WDQ6 rev3, 16 MB flash, 4 MB PSRAM):**
+  - PSRAM is mandatory — ESP32-audioI2S `begin` fails without it.
+  - I2S via the same M-Bus positions as the CoreS3 (M5Unified board_M5Stack
+    table): Module Audio {BCLK 13, LRCK 12, DOUT 15, **MCLK 0**}, pin switch
+    on **A**; RCA {13, 0, 15}. No internal output: Module Audio if 0x33
+    answers, else RCA. The 8-bit DAC speaker (GPIO25) is held low, unused.
+  - GPIO15 is also the Fire base's LED-bar data line (flickers with I2S).
+  - GPIO0 = MCLK = the UART bridge's DTR line (auto-reset circuit): a held
+    DTR pulls it low. Serial scripts release DTR on `ttyUSB*`, and drop RTS
+    **before** DTR on open — the other order passes through RTS-only = EN low
+    = a reset (it killed a wifi-join mid-flight once).
+  - `M5.In_I2C` is **I2C_NUM_0 on 21/22 — the same port as `Wire`**:
+    `audio_out` re-begins In_I2C on its own port/pins after the codec setup.
+  - Internal heap: ~164 KB at boot, **~50 KB / 26 KB max block while
+    playing**. A TLS session can't fit → mbedtls allocations ≥512 B go to
+    PSRAM (`net::tlsMemInit`, public `mbedtls_platform_set_calloc_free`,
+    `WH_TLS_IN_PSRAM`): HTTPS/HLS streams handshake in ~600 ms and verified
+    API calls work mid-stream. (CoreS3 candidate, untested there.)
+  - Stock lwIP window (5760) — measured fine at 128–192 kbps from EU hosts.
+- Wi-Fi join race (both boards): while an unreachable stored network is
+  being retried, `disconnect()+begin()` is rejected ("sta is connecting,
+  cannot set config") and the OLD network keeps going. Always switch
+  networks through `restartAssociation()` (`wh_wifi.cpp`).
+- Wi-Fi setup portal (`wifi_portal.cpp`): AP + captive DNS + form, boot-only
+  (never next to a stream — settings sets the NVS `portal` flag + reboots).
 - USB-CDC: `Serial.begin()` is required for `Serial.print*` (log_* bypasses
   it). `pio device monitor` needs a TTY — use `scripts/serial_capture.py`
   from scripts/agents (it also does the proper DTR-low reset dance).
 - LittleFS partition is labeled `littlefs`: mount with
   `LittleFS.begin(true, "/littlefs", 10, "littlefs")` (esp_littlefs defaults
   to the label "spiffs" and fails).
-- UI matches the webapp's default Dark skin: palette constants in `ui.cpp`
+- UI matches the webapp's default Dark skin: palette constants in `ui_internal.h`
   (bg #0a0a0a, fg #e8e8e8, station accent with dark accent-fg) and the real
   VT323 font embedded via `include/font_vt323.h` — GENERATED, don't edit;
   regenerate with `scripts/gen_gfxfont.py <VT323.ttf> include/font_vt323.h
@@ -175,7 +218,9 @@ in the root `CLAUDE.md`; the normative cross-player contract is
   in-flight downloads; local `manifest.json` is the commit marker (absence ⇒
   full sync). Empty FS is valid — the device syncs itself.
 - NVS namespace `wh`: `ssid`, `pass`, `last_st`, `vol` (0–21), `aout`
-  (0 auto/1 internal/2 rca/3 module), `bright` — documented in config.h.
+  (0 auto/1 internal/2 rca/3 module), `bright`, `portal` (one-shot) —
+  documented in config.h. `ssid` present but empty = forgotten (no
+  secrets.h fallback).
 
 ## Bench workflow (no hands needed)
 
@@ -189,7 +234,10 @@ in the root `CLAUDE.md`; the normative cross-player contract is
   `scripts/serial_capture.py` output. Sound/touch/visuals need a human.
 - **Serial console** (`src/serial_cmd.cpp`, replies prefixed `@`): `status`,
   `list`, `tune <idx|id>`, `next`/`prev`, `retune`, `vol <0-21>`,
-  `dns <host>`, `net`, `wifi-drop`, `reboot`. Drive it with
+  `dns <host>`, `net`, `wifi-drop`, `wifi-ssid <s>` / `wifi-pass <p>` /
+  `wifi-join` (bench provisioning — also live in the boot wifi wait),
+  `portal`, `reboot`. Ports: CoreS3 `/dev/ttyACM0` (default), Fire
+  `/dev/ttyUSB0` (`--port`). Drive it with
   `scripts/wh_console.py` (`cmd …`, `boot --runs N` = boot→lock timing, `log`)
   — one process owns the port; it handshakes first (after a long idle the
   first bytes sent can be dropped). Run with `~/.platformio/penv/bin/python3`.
@@ -202,7 +250,8 @@ in the root `CLAUDE.md`; the normative cross-player contract is
 ## Release rule
 
 Every OTA-published binary bumps `WH_FW_BUILD` (monotonic integer) and
-`WH_FW_VERSION` (human semver) in `platformio.ini` **production env**, and
-follows the runbook in CONTENT-API.md: upload the **versioned** `.bin` first,
-rewrite the firmware manifest last. Never publish a `latest.bin`, never
-publish from the dev env.
+`WH_FW_VERSION` (human semver) in **`wh-common.ini`** (shared by both
+boards), and follows the runbook in CONTENT-API.md:
+`python3 tools/release-m5.py --board m5cores3|m5fire|all` writes the
+**versioned** `.bin` first and the manifest last. Never publish a
+`latest.bin`, never publish from a dev env.

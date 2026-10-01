@@ -12,7 +12,7 @@ content/  ──build──▶  players/web/public/  ──deploy──▶  http
                        ┌───────────────────────────────────────┤
                        ▼                    ▼                  ▼
                    web PWA            mobile apps         M5 firmware
-                   (browsers)      (Capacitor shells)    (CoreS3 devices)
+                   (browsers)      (Capacitor shells)   (CoreS3 + Fire)
 ```
 
 - **`content/` is the only source of truth** for stations and icons. Nobody
@@ -30,6 +30,7 @@ content/  ──build──▶  players/web/public/  ──deploy──▶  http
 | Web PWA | on deploy (service worker, network-first shell) | `/stations.json` on every load (network-first) |
 | Mobile (Capacitor) | app stores | same web endpoints as the PWA |
 | M5 CoreS3 | self-OTA from `/content/firmware/m5cores3/` | syncs `/content/m5cores3/` pack (manifest + sha256 diff) |
+| M5 Fire | self-OTA from `/content/firmware/m5fire/` (own binary: classic ESP32) | same `/content/m5cores3/` pack |
 
 The full contract — endpoints, schemas, versioning and sync semantics — lives
 in [CONTENT-API.md](CONTENT-API.md). **That file is normative**; read it before
@@ -46,7 +47,7 @@ content/                 source of truth
 players/                 one directory per player, each with its own CLAUDE.md
 ├── web/public/          deployable docroot: PWA + PHP now-playing API
 │   └── content/         build-emitted packs + firmware manifests (committed)
-├── m5cores3/            PlatformIO firmware for M5Stack CoreS3 / SE
+├── m5cores3/            PlatformIO firmware for M5Stack CoreS3 / SE + Fire (fire/)
 └── mobile/              Capacitor iOS/Android shell (placeholder for now)
 
 tools/build.py           content/ → all committed artifacts (see its docstring)

@@ -27,11 +27,22 @@ Authoritative origin: **`https://waverz.net`** (the deployed
 | `/content/m5cores3/icons/<file>.png` | M5 firmware | 64×64 downscaled icons |
 | `/content/firmware/m5cores3/manifest.json` | M5 firmware | Published-firmware pointer |
 | `/content/firmware/m5cores3/<name>-<version>+<build>.bin` | M5 firmware | OTA images (versioned names, never `latest.bin`) |
+| `/content/firmware/m5fire/manifest.json` | M5 firmware (Fire) | Published-firmware pointer, Fire channel |
+| `/content/firmware/m5fire/<name>-<version>+<build>.bin` | M5 firmware (Fire) | OTA images, Fire channel |
 | `/api/now-playing.php?id=<station-id>` | all players | Normalized now-playing metadata |
 
 A new player type gets its own pack under `/content/<player-dirname>/` (rule:
 pack id == its directory name under `players/`) and, if it self-updates, a
 firmware dir under `/content/firmware/<player-dirname>/`.
+
+**Several boards, one player dir.** `players/m5cores3/` builds one firmware
+per chip from the same sources: the CoreS3 (ESP32-S3, board id `m5cores3`)
+and the M5Stack Fire (classic ESP32, board id `m5fire`). Binaries can never
+be shared across chips, so **firmware channels are per board id**
+(`/content/firmware/<board-id>/`), while **every M5 board reads the one
+`m5cores3` content pack** (same 320×240 screen, icons and `m5Url` rules). A
+board that ever needs different station data gets its own pack — an
+addition, not a change.
 
 ## Station object
 
@@ -113,8 +124,10 @@ applied. Unknown fields: ignore.
 - `build: 0` with `url: null` means "nothing published yet" — devices no-op.
   (`tools/build.py` creates this placeholder if the file is missing and never
   overwrites an existing one.)
-- `board` must match the device's compiled-in board id (`m5cores3`) — cheap
-  insurance against flashing the wrong player's image.
+- `board` must match the device's compiled-in board id (`m5cores3` or
+  `m5fire`) — cheap insurance against flashing the wrong player's image.
+  Devices additionally refuse an image whose ESP header chip id (bytes 12–13)
+  isn't their own chip, before writing anything to flash.
 - Binaries use versioned filenames so a cached manifest can never pair with a
   mismatched binary; the device verifies `sha256` while streaming regardless.
 
@@ -192,7 +205,7 @@ verified-TLS only.
 Body (JSON, ≤1 KB):
 
 ```json
-{"v":1, "id":"<uuid>", "p":"web|m5cores3|mobile", "ev":"start|hb|stop",
+{"v":1, "id":"<uuid>", "p":"web|m5cores3|m5fire|mobile", "ev":"start|hb|stop",
  "st":"<station-id>", "tz":"Europe/Paris", "lang":"fr-FR", "app":"<version>"}
 ```
 
@@ -223,13 +236,16 @@ Configured in `players/web/public/.htaccess` (production host is Infomaniak,
 Apache/LiteSpeed) — that file is the single source; there is no separate
 server-side config to keep in sync.
 
-## Firmware release runbook (m5cores3)
+## Firmware release runbook (m5cores3, m5fire)
 
 1. Bump `WH_FW_BUILD` (always) and `WH_FW_VERSION` (human-meaningful) in
-   `players/m5cores3/platformio.ini`.
-2. `pio run` → `players/m5cores3/.pio/build/m5stack-cores3/firmware.bin`.
-3. Rename to `wavehopper-m5cores3-<version>+<build>.bin`, compute sha256 + size.
-4. Upload the `.bin` to `/content/firmware/m5cores3/` on the host **first**.
-5. Rewrite `manifest.json` (schema above) **last** — it is the publish switch.
-6. Test the OTA on the in-hand device before walking away. Keep the previous
-   `.bin` on the host until the fleet has moved past it.
+   `players/m5cores3/wh-common.ini` — shared by both boards.
+2. Build: `pio run -e m5stack-cores3` in `players/m5cores3/` and/or `pio run`
+   in `players/m5cores3/fire/` (separate PlatformIO core, see its ini).
+3. `python3 tools/release-m5.py --board m5cores3|m5fire|all` — names each
+   binary `wavehopper-<board>-<version>+<build>.bin`, checks its chip id and
+   freshness, computes sha256 + size, writes the `.bin` **first** and the
+   board's `manifest.json` (schema above) **last** — it is the publish switch.
+4. Commit + push (the deploy webhook mirrors the docroot).
+5. Test the OTA on the in-hand device(s) before walking away. A board may be
+   released alone; its channel's `build` still only ever increases.

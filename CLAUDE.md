@@ -9,7 +9,7 @@ authoritative server (`https://waverz.net`), several clients that sync from it.
 |---|---|---|
 | `content/` | **Source of truth**: stations (`<id>.json` + `<id>.md`), icons, `_order.json` | this file |
 | `players/web/` | PWA + PHP API — the deployable, authoritative docroot | `players/web/CLAUDE.md` |
-| `players/m5cores3/` | M5Stack CoreS3 firmware (PlatformIO) | `players/m5cores3/CLAUDE.md` |
+| `players/m5cores3/` | M5Stack firmware (PlatformIO): CoreS3 + Fire (`fire/`) | `players/m5cores3/CLAUDE.md` |
 | `players/mobile/` | Capacitor iOS/Android shell (placeholder) | `players/mobile/CLAUDE.md` |
 | `tools/build.py` | `content/` → all committed artifacts | its docstring |
 | `docs/CONTENT-API.md` | **Normative cross-player contract** | — |
@@ -47,8 +47,10 @@ functions, so the receiver deploys in pure PHP — fetch repo tarball, extract,
 mirror `players/web/public/` into the docroot. Anything you commit under the
 docroot goes live on push. Server clone: `ssh hmsphr`,
 `~/web/waverz.net/WaveHopper` (CLI git works there for manual pulls).
-Firmware OTA is separate: `pio run` then `python3 tools/release-m5.py` to
-publish a new binary + manifest (bump `WH_FW_BUILD` first).
+Firmware OTA is separate, one channel per board: bump `WH_FW_BUILD` in
+`players/m5cores3/wh-common.ini`, build (`pio run -e m5stack-cores3`; Fire:
+`pio run` in `players/m5cores3/fire/`), then
+`python3 tools/release-m5.py --board m5cores3|m5fire|all`.
 
 ## Station workflow
 

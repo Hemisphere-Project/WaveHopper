@@ -1,7 +1,7 @@
 <?php
 // Listener telemetry ingest — docs/CONTENT-API.md §Telemetry is normative.
 //
-// POST {"v":1,"id":"<uuid>","p":"web|m5cores3|mobile","ev":"start|hb|stop",
+// POST {"v":1,"id":"<uuid>","p":"web|m5cores3|m5fire|mobile","ev":"start|hb|stop",
 //       "st":"<station-id>","tz":"...","lang":"...","app":"..."}
 //
 // Privacy: the install id is an anonymous random UUID. The client IP is used
@@ -14,7 +14,7 @@ declare(strict_types=1);
 require __DIR__ . '/lib/telemetry_db.php';
 require __DIR__ . '/lib/stations.php';
 
-const GAP_WINDOWS = ['web' => 200, 'mobile' => 200, 'm5cores3' => 400];
+const GAP_WINDOWS = ['web' => 200, 'mobile' => 200, 'm5cores3' => 400, 'm5fire' => 400];
 const GEO_REFRESH_S = 30 * 86400;
 
 function bail(int $code): void {
