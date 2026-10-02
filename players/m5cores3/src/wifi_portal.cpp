@@ -122,7 +122,25 @@ const char kHead[] PROGMEM =
     "background:#161616;color:#e8e8e8;border:1px solid #2a2a2a;border-radius:6px;font:inherit}"
     "button{width:100%;padding:13px;margin-top:16px;background:#fff205;color:#0a0a0a;border:0;"
     "border-radius:6px;font:inherit;font-weight:bold}"
+    ".h{margin-top:26px;border-top:1px solid #2a2a2a;padding-top:10px}.h p{margin:5px 0}"
+    ".h b{color:#fff205;font-weight:normal}"
     "</style></head><body><h1>Waverz&middot;net</h1>";
+
+// A glance at the controls — just enough to know each one exists; the radio
+// is discoverable from there. Per board: touch (CoreS3) vs buttons (Fire).
+const char kHowTo[] PROGMEM =
+    "<div class=h><p class=d>Your radio</p>"
+#if WH_HAS_TOUCH
+    "<p><b>tap left / right</b> previous / next &mdash; or swipe</p>"
+    "<p><b>drag up / down</b> browse the stations</p>"
+    "<p><b>buttons under the screen</b> volume</p>"
+    "<p><b>hold the screen</b> settings: stations, wifi, audio</p>"
+#else
+    "<p><b>A / C</b> previous / next &mdash; hold to browse</p>"
+    "<p><b>B</b> volume, then A / C</p>"
+    "<p><b>hold B</b> settings: stations, wifi, audio</p>"
+#endif
+    "</div>";
 
 String bars(int rssi) {
   int b = rssi >= -55 ? 4 : rssi >= -65 ? 3 : rssi >= -72 ? 2 : rssi >= -80 ? 1 : 0;
@@ -152,7 +170,9 @@ void handleRoot() {
        "autocorrect=off><label class=d><input type=checkbox "
        "onclick=\"p.type=this.checked?'text':'password'\"> show</label>"
        "<button>join</button></form>"
-       "<p class=d><a href=/scan>rescan</a> &middot; 2.4 GHz networks only</p></body></html>";
+       "<p class=d><a href=/scan>rescan</a> &middot; 2.4 GHz networks only</p>";
+  p += FPSTR(kHowTo);
+  p += "</body></html>";
   g_server->send(200, "text/html", p);
 }
 
@@ -192,7 +212,7 @@ void handleJoin() {
                   "You can close this page.';"
                   "else if(j.s=='fail')m.innerHTML='Could not join &mdash; check the password. "
                   "<a href=/>Try again</a>';else setTimeout(t,1000)}).catch(()=>setTimeout(t,1500))}"
-                  "setTimeout(t,1500)</script>");
+                  "setTimeout(t,1500)</script>" + String(FPSTR(kHowTo)));
 }
 
 void handleStatus() {
