@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "board": "m5fire",
-  "version": "0.2.7",
-  "build": 9,
-  "url": "https://waverz.net/content/firmware/m5fire/wavehopper-m5fire-0.2.7+9.bin",
-  "sha256": "3ba469ea4a2a144ee2ef0afb8fbb1b51796911b32dcd1ff0f582bbed7f44a00e",
-  "size": 2380384
+  "version": "0.2.8",
+  "build": 10,
+  "url": "https://waverz.net/content/firmware/m5fire/wavehopper-m5fire-0.2.8+10.bin",
+  "sha256": "c41cd90d21cf0b8d1a1d2921bb47f9eb1534c64a08a611ca43a076940be262e1",
+  "size": 2380752
 }

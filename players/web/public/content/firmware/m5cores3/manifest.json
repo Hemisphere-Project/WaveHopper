@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "board": "m5cores3",
-  "version": "0.2.7",
-  "build": 9,
-  "url": "https://waverz.net/content/firmware/m5cores3/wavehopper-m5cores3-0.2.7+9.bin",
-  "sha256": "e13aacd5fe5e7e9f377d7c461270c88f225d5db831b41c3795f32bbb5667e0e6",
-  "size": 2404992
+  "version": "0.2.8",
+  "build": 10,
+  "url": "https://waverz.net/content/firmware/m5cores3/wavehopper-m5cores3-0.2.8+10.bin",
+  "sha256": "8b94358a116eceb516c964ab28916a22fab522cd71152cbcc3aaa437d0f9874a",
+  "size": 2405472
 }

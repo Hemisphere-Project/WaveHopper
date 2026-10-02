@@ -13,7 +13,11 @@ manifest LAST (the manifest is the publish switch). Older .bin files of that
 board are pruned so only the current release ships (deploys are git pulls).
 
 Refuses a binary whose image header names another chip, or one older than
-wh-common.ini (= built before the version bump).
+wh-common.ini (= built before the version bump) — and refuses to publish
+compiled-in Wi-Fi credentials: OTA binaries are public (waverz.net + this
+public repo), and every build embeds include/secrets.h. Releases are built
+with the placeholder secrets.h.example; devices get their network from the
+phone setup portal.
 
 Does NOT compile — build first:
   cd players/m5cores3 && pio run -e m5stack-cores3
@@ -40,6 +44,10 @@ FW_DIR = ROOT / 'players' / 'm5cores3'
 VERSION_INI = FW_DIR / 'wh-common.ini'
 HOST = 'https://waverz.net'
 
+SECRETS_H = FW_DIR / 'include' / 'secrets.h'
+PLACEHOLDER_SSID = 'your-ssid'          # secrets.h.example
+PLACEHOLDER_PASS = b'your-password\x00'  # present in a binary only if built with it
+
 # board id -> (built binary, build command, ESP image header chip id)
 BOARDS = {
     'm5cores3': (FW_DIR / '.pio' / 'build' / 'm5stack-cores3' / 'firmware.bin',
@@ -59,6 +67,18 @@ def read_version_build() -> tuple[str, int]:
     return ver.group(1), int(build.group(1))
 
 
+def check_secrets_placeholder() -> None:
+    """Source side: secrets.h must hold the placeholder network."""
+    if not SECRETS_H.is_file():
+        return  # the build itself would fail without it
+    m = re.search(r'#define\s+WH_WIFI_SSID\s+"([^"]*)"', SECRETS_H.read_text(encoding='utf-8'))
+    ssid = m.group(1) if m else ''
+    if ssid not in ('', PLACEHOLDER_SSID):
+        sys.exit(f'release failed: {SECRETS_H.relative_to(ROOT)} holds real Wi-Fi credentials '
+                 f'("{ssid}") — every build embeds them and OTA binaries are public. '
+                 f'cp {SECRETS_H.name}.example {SECRETS_H.name}, rebuild, release.')
+
+
 def release(board: str, version: str, build: int) -> None:
     binary, build_cmd, chip_id = BOARDS[board]
     if not binary.is_file():
@@ -67,6 +87,13 @@ def release(board: str, version: str, build: int) -> None:
     if len(data) < 16 or data[0] != 0xE9 or int.from_bytes(data[12:14], 'little') != chip_id:
         sys.exit(f'release failed: {binary.relative_to(ROOT)} is not an image for {board} '
                  f'(header chip id {int.from_bytes(data[12:14], "little")}, want {chip_id})')
+    if PLACEHOLDER_PASS not in data:
+        # Binary side: a build from the placeholder secrets.h carries its
+        # password literal; without it, real credentials were compiled in
+        # (e.g. a stale binary from before secrets.h was blanked).
+        sys.exit(f'release failed: {binary.relative_to(ROOT)} was not built with the placeholder '
+                 f'secrets.h (no "{PLACEHOLDER_PASS[:-1].decode()}" literal) — it may embed Wi-Fi '
+                 f'credentials. Rebuild ({build_cmd}).')
     if binary.stat().st_mtime < VERSION_INI.stat().st_mtime:
         sys.exit(f'release failed: {binary.relative_to(ROOT)} is older than '
                  f'{VERSION_INI.relative_to(ROOT)} — rebuild after the version bump ({build_cmd})')
@@ -103,6 +130,7 @@ def main() -> int:
     ap.add_argument('--board', required=True, choices=[*BOARDS, 'all'],
                     help='firmware channel to publish (all = every board)')
     args = ap.parse_args()
+    check_secrets_placeholder()
     version, build = read_version_build()
     boards = list(BOARDS) if args.board == 'all' else [args.board]
     # Check every binary before writing anything, so "all" never half-publishes
