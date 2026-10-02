@@ -2,9 +2,13 @@
 // File cache for now-playing fetchers. Stores JSON-serialisable arrays under
 // public/api/cache/<key>.json with mtime-based TTL. On upstream failure,
 // returns the last-known-good payload (stale-while-broken) so a flaky NTS API
-// doesn't blank the now-playing card.
+// doesn't blank the now-playing card — but bounded: never a show whose `ends`
+// has passed, never older than WH_CACHE_MAX_STALE. Unbounded, a dead upstream
+// (LYL's old GraphQL host, 2026) served a months-old show as "now playing".
 
 declare(strict_types=1);
+
+const WH_CACHE_MAX_STALE = 1800; // seconds a failed upstream may be papered over
 
 function wh_cache_dir(): string {
     return __DIR__ . '/../cache';
@@ -45,7 +49,8 @@ function wh_cache_age(string $key): ?int {
 
 /**
  * Return cached value if fresh, else call $fetcher and cache its result.
- * If $fetcher returns null (or throws) and a stale entry exists, return stale.
+ * If $fetcher returns null (or throws), return the stale entry while it can
+ * still be current (not past its `ends`, younger than WH_CACHE_MAX_STALE).
  */
 function wh_cached(string $key, int $ttl, callable $fetcher): ?array {
     $age = wh_cache_age($key);
@@ -62,6 +67,10 @@ function wh_cached(string $key, int $ttl, callable $fetcher): ?array {
         wh_cache_write($key, $fresh);
         return $fresh;
     }
-    // Upstream failed — serve stale if we have it.
-    return wh_cache_read($key);
+    // Upstream failed — serve stale if it can still be true.
+    $stale = wh_cache_read($key);
+    if ($stale === null || $age === null || $age > WH_CACHE_MAX_STALE) return null;
+    $ends = isset($stale['ends']) && is_string($stale['ends']) ? strtotime($stale['ends']) : false;
+    if ($ends !== false && $ends < time()) return null;
+    return $stale;
 }

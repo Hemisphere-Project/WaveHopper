@@ -54,7 +54,8 @@
     "color": "#ebd32a",
     "homepage": "https://lyl.live/",
     "nowPlaying": {
-      "type": "lyl-graphql"
+      "type": "lyl-graphql",
+      "endpoint": "https://strapi.lyl.live/graphql"
     },
     "icon": "icons/lyl-alt.png"
   },

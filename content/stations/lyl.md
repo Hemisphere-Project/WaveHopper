@@ -41,10 +41,19 @@ access-control-allow-origin: *
 
 ## Now-playing
 - **Source type:** `lyl-graphql`
-- **Endpoint:** `POST https://api.lyl.live/graphql` — query `{ calendar { startAt duration title artists } }`
-- **Mapping:** `artists` → `title` (show host), `title` → `subtitle` (show name), `startAt` (UTC ISO 8601) + parsed `duration` → `starts`/`ends`. Next entry in the list → `next.title`/`next.starts`.
-- **Cache key:** `lyl-graphql` (shared, 30 s TTL — show-level, full-day schedule per call)
-- **Caveats:** `calendar` returns ~23 entries covering today's broadcast day from ~01:00 UTC. The `onair` query also exists (`{ onair { title } }`) but only returns the combined `"Artist - Show"` string with no separate fields and no timestamps — `calendar` is strictly better. No timezone conversion needed: `startAt` is already UTC.
+- **Endpoint:** `POST https://strapi.lyl.live/graphql` (in `nowPlaying.endpoint`) — one request:
+  `query($from: DateTime!, $to: DateTime!) { onair { title } calendar(from: $from, to: $to) { start end title artists } }`
+  with a ±12 h window. (Moved 2026-10-02: the old `api.lyl.live/graphql` + `calendar { startAt duration … }`
+  stopped answering; the unbounded stale cache then served a July show as "now playing" for months.
+  Found the new host in the lyl.live SPA bundle, `/assets/index-*.js`.)
+- **Mapping:** `artists` → `title` (show host), `title` → `subtitle` (show name), `start`/`end` (UTC ISO 8601)
+  → `starts`/`ends`. Next slot starting at/after the current one's end → `next`.
+- **Overlaps & gaps:** calendar slots can overlap (seen 04:00–05:00 and 04:30–05:30) — prefer the slot whose
+  `"artists - title"` equals `onair.title`, else the latest-starting one containing now. Between scheduled
+  slots (e.g. 07:30–08:00), fall back to `onair.title` split on `" - "` (no times).
+- **Cache key:** `lyl-graphql` (shared, 30 s TTL — show-level).
+- **Verified 2026-10-02 07:14 UTC:** `onair` = "VVS237 - 6 Feet Deep"; fetcher → title "VVS237", subtitle
+  "6 Feet Deep", 06:30–07:30Z, next "Mr. Lobster" 08:00Z — matches lyl.live.
 
 ## Open questions
 
