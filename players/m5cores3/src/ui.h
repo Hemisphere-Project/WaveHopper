@@ -47,6 +47,10 @@ enum class SettingsAction {
   ForgetWifi,   // clear stored credentials (next boot opens the portal)
 };
 bool settingsOpen();
+// True only while a settings page drives the radio itself (touch boards: the
+// wifi scan list + password keyboard) — the wifi watchdog must stand aside
+// then, and only then.
+bool settingsOwnsRadio();
 void settingsShow(AudioOutSetting audioOut, uint8_t brightness);
 SettingsAction settingsTouch(int x, int y);
 bool settingsScroll(int rows);        // drag-scroll the active list page

@@ -41,6 +41,7 @@ static int lastStationIndex = -1;
 static bool g_booting = true;           // until the player runs (setup() done)
 static bool g_portalRequested = false;  // settings asked for the portal during boot
 static int g_browseIdx = -1;            // >=0 while browsing the station toast
+static bool g_wakeTouch = false;        // touch boards: this gesture woke the screen
 static uint32_t g_browseCommitAt = 0;   // tune the browsed station after this
 
 // Settings closed with an action — shared by the touch overlay and the
@@ -222,7 +223,8 @@ static bool stationInput(const PlayerSnapshot& snap, const m5::touch_detail_t& t
     if (t.wasFlicked() && t.y < 240 && abs(t.distanceX()) > 30 &&
         abs(t.distanceX()) > abs(t.distanceY())) {
       step = t.distanceX() < 0 ? 1 : -1;
-    } else if (t.wasClicked() && t.y < 240) {
+    } else if (t.wasClicked() && t.y < 240 && !g_wakeTouch) {
+      // A plain tap that woke a dimmed screen only wakes it (swipes act).
       step = t.x < 160 ? -1 : 1;
     }
     if (step != 0) {
@@ -483,12 +485,16 @@ void loop() {
   // Settings overlay: modal — BtnB hold opens, taps route to it.
   if (ui::settingsOpen()) {
     settingsPump();
+    // A link that drops while the menu sits open must still come back
+    // (measured: 150 s offline behind an open Fire menu).
+    if (!ui::settingsOwnsRadio()) whwifi::maintain(settings);
     vTaskDelay(pdMS_TO_TICKS(5));
     return;
   }
-  // Auto-dim after inactivity. Any input brightens the screen AND acts —
-  // the dimmed card stays readable, so a press means what it says (next
-  // while dimmed = wake + next). (No IMU on the SE — input wake only.)
+  // Auto-dim after inactivity. Waking: a physical button (Fire) brightens
+  // AND acts (next while dimmed = wake + next); on touch boards a plain tap
+  // on the screen only wakes it, while swipes / drags / bezel buttons act
+  // (g_wakeTouch, consumed in stationInput). (No IMU on the SE.)
   auto t = M5.Touch.getDetail();
   static uint32_t lastInteraction = millis();
   static bool dimmed = false;
@@ -498,15 +504,18 @@ void loop() {
     lastInteraction = millis();
     if (dimmed) {
       dimmed = false;
+      g_wakeTouch = WH_HAS_TOUCH && t.isPressed();
       M5.Display.setBrightness(settings.brightness);
     }
   } else if (!dimmed && millis() - lastInteraction > WH_DIM_AFTER_MS) {
     dimmed = true;
-    M5.Display.setBrightness(max<uint8_t>(settings.brightness / 4, 12));
+    M5.Display.setBrightness(max<uint8_t>(settings.brightness / WH_DIM_DIVISOR, WH_DIM_MIN));
   }
 
   PlayerSnapshot snap = player::snapshot();
-  if (stationInput(snap, t)) {  // true = settings just opened
+  bool settingsOpened = stationInput(snap, t);
+  if (g_wakeTouch && !t.isPressed()) g_wakeTouch = false;  // waking gesture finished
+  if (settingsOpened) {
     vTaskDelay(pdMS_TO_TICKS(5));
     return;
   }
@@ -540,8 +549,7 @@ void loop() {
     ui::wifiMeter(0);  // reads RSSI itself; visible in every state incl. tuning
   }
 
-  // Settings' own scan/join flow owns the radio while open.
-  if (!ui::settingsOpen()) whwifi::maintain(settings);
+  if (!ui::settingsOwnsRadio()) whwifi::maintain(settings);
 
   ui::tick();
 

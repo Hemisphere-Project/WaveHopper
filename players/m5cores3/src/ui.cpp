@@ -224,7 +224,9 @@ String sanitizeForFont(const String& in) {
 
 // RSSI bars, drawable into the card canvas or straight onto the display.
 void drawMeterInto(LovyanGFX& g) {
-  int rssi = WiFi.RSSI();
+  // WiFi.RSSI() reads 0 while disconnected — and 0 dBm would draw as a full
+  // strong signal next to "wifi lost". No link = no bars.
+  int rssi = WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : -127;
   int bars = rssi >= -55 ? 4 : rssi >= -65 ? 3 : rssi >= -72 ? 2 : rssi >= -80 ? 1 : 0;
   uint16_t col = bars >= 3   ? rgb565(0x14, 0x66, 0x2e)
                  : bars == 2 ? rgb565(0x66, 0x4d, 0x12)
@@ -343,15 +345,7 @@ void buildCard() {
     g_card.drawString(msg.c_str(), W / 2, MARQUEE_YMID + MARQUEE_H / 2);
   }
 
-#if WH_HAS_TOUCH
-  // Nav hints.
-  g_card.setFont(&F_SMALL);
-  g_card.setTextColor(COL_DIM, COL_BG);
-  g_card.setTextDatum(bottom_left);
-  g_card.drawString("<", 6, H - 6);  // clear of the bottom buffer gauge
-  g_card.setTextDatum(bottom_right);
-  g_card.drawString(">", W - 6, H - 6);
-#endif
+  // No nav hints on either board — taps/buttons are discoverable enough.
 }
 
 void pushCard() {
@@ -487,7 +481,7 @@ void drawSettingsWifi() {
   d.setTextColor(up ? COL_FG : COL_DIM, COL_BG);
   d.drawString(("ssid: " + (up ? WiFi.SSID() : String("(offline)"))).c_str(), 16, 60);
   d.drawString(("ip:   " + WiFi.localIP().toString()).c_str(), 16, 82);
-  d.drawString(("rssi: " + String(WiFi.RSSI()) + " dBm").c_str(), 16, 104);
+  d.drawString(("rssi: " + (up ? String(WiFi.RSSI()) + " dBm" : String("-"))).c_str(), 16, 104);
 
   // Two ways to join: type the password here (scan), or the phone portal.
   d.setFont(&F_MED);
@@ -760,6 +754,14 @@ void render(const PlayerSnapshot& snap, const NowPlaying& np) {
 }
 
 bool settingsOpen() { return g_settingsOpen; }
+
+bool settingsOwnsRadio() {
+#if WH_HAS_TOUCH
+  return g_settingsOpen && (g_page == SettingsPage::WifiScan || g_page == SettingsPage::WifiPassword);
+#else
+  return false;  // button menu: "phone setup" reboots into the portal
+#endif
+}
 
 #if WH_HAS_TOUCH
 void settingsShow(AudioOutSetting audioOut, uint8_t brightness) {

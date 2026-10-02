@@ -85,6 +85,7 @@ class Fuzzer:
         while time.monotonic() - t < 40:
             if self.status():
                 return
+            time.sleep(0.5)  # the boot-time console answers `state=booting` at once
         self.flag('ui-hang', 'console never came back after reboot', m)
 
     # -- actions ------------------------------------------------------------
