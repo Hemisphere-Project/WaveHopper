@@ -27,7 +27,9 @@ void load(WhSettings& s) {
     s.lastStation = p.getString("last_st", "");
     s.volume = p.getUChar("vol", 21);
     uint8_t aout = p.getUChar("aout", 0);
-    s.audioOut = aout <= 3 ? static_cast<AudioOutSetting>(aout) : AudioOutSetting::Auto;
+    s.audioOut = aout == 2   ? AudioOutSetting::Rca
+                 : aout == 3 ? AudioOutSetting::ModuleAudio
+                             : AudioOutSetting::Auto;  // 0, legacy 1 (speaker), junk
     s.brightness = p.getUChar("bright", 200);
   });
 }

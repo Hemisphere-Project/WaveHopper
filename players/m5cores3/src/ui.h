@@ -35,6 +35,9 @@ void stationToast(int currentIndex);  // list of neighbors, ~2 s
 void volumeOverlay(uint8_t vol, uint32_t holdMs = 1500);
 void dismissOverlay();
 
+// The audio profile in use (audio_out::name) — shown beside the setting.
+void setAudioActive(const char* name);
+
 // Modal settings UI (hold BtnB; touch: also hold the card / boot gear).
 // Touch boards: main routes taps to settingsTouch(). Button boards: main
 // routes A/B/C to settingsKey() — a list menu. Both return an action.

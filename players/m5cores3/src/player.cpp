@@ -14,7 +14,7 @@
 namespace {
 
 Audio g_audio(I2S_NUM_1);  // same port M5Unified drives the amp with
-AudioProfile g_profile = AudioProfile::Internal;
+AudioProfile g_profile = AudioProfile::Rca;
 QueueHandle_t g_cmdQueue = nullptr;
 // The lib's decode task. We suspend it across connect so loop()'s network
 // pump can build the prebuffer cushion before playback starts (the lib has no
@@ -59,7 +59,6 @@ uint32_t g_stallSince = 0;
 uint32_t g_lowAccumMs = 0, g_lowWindowStart = 0, g_lastLowTick = 0;
 uint32_t g_lastRebuffer = 0;
 uint32_t g_playCushion = 0;  // bytes buffered when playback started
-uint32_t g_lastHealth = 0;
 uint8_t g_volume = 21;
 bool g_volDirty = false;
 uint32_t g_volSaveAt = 0;
@@ -220,8 +219,8 @@ void begin(AudioProfile profile, uint8_t volume, int firstStationIndex) {
   // startAudioTask() is then a no-op ("already running").
   g_audio.setAudioTaskCore(1);
   g_audio.setPinout(p.bclk, p.lrck, p.dout, p.mclk);
-  // Constant 48 kHz output clock: the AW88298 can't lock the ESP32's
-  // fractional 44.1 kHz BCLK and faults on I2S clock reconfigs (see M0 notes).
+  // Constant 48 kHz output clock (the lib resamples): one I2S clock for every
+  // station = no clock reconfig (pop) on rate changes.
   g_audio.setOutput48KHz(true);
   // No VU meter / spectrum UI: skip the per-sample analysis (~35% of the
   // decode core on the classic ESP32 — AAC underran without this).
@@ -311,8 +310,6 @@ void tick() {
         g_lastLowTick = 0;
         clearSweep();
         whnvs::saveLastStation(catalog::at(g_current).id);
-        audio_out::onSampleRate(g_profile, 48000);  // amp healthy at stream start
-        g_lastHealth = now;
         g_gen++;
       } else if (now > g_deadline) {
         log_e("tune deadline hit on [%d]", g_current);
@@ -383,10 +380,6 @@ void tick() {
           startTune(g_current, 1);
           break;
         }
-      }
-      if (now - g_lastHealth > 5000) {
-        g_lastHealth = now;
-        audio_out::onSampleRate(g_profile, 48000);  // SWS fault self-heal
       }
       {  // buffer diagnostics: 10 s cadence, min tracks the worst dip.
         // arrival = Δbuffer + consumption — separates supply-side problems

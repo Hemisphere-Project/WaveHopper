@@ -11,11 +11,12 @@
 
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
 
-// M5Stack CoreS3 / CoreS3 SE — touch screen, AW88298 internal amp.
+// M5Stack CoreS3 / CoreS3 SE — touch screen. Its AW88298 speaker amp is not
+// used (audio: Module Audio or RCA, as on the Fire) but must be kept dark.
 #define WH_BOARD_ID          "m5cores3"
 #define WH_BOARD_NAME        "CoreS3"
 #define WH_HAS_TOUCH         1
-#define WH_HAS_INTERNAL_AMP  1
+#define WH_HAS_SPEAKER_AMP   1  // AW88298 on the I2S data line — audio_out turns it off
 #define WH_TLS_IN_PSRAM      0  // candidate (same starvation) — not yet bench-tested here
 #define WH_DIM_DIVISOR       4   // auto-dim = brightness / this (AXP2101-driven backlight)
 #define WH_DIM_MIN           12
@@ -25,7 +26,6 @@
 // onto GPIO0 (only Module Audio deliberately uses GPIO7 for MCLK).
 //
 //                          BCLK  LRCK  DOUT  MCLK
-#define WH_PINS_INTERNAL    { 34,   33,   13,  -1 }   // AW88298 amp (BCK-clocked)
 #define WH_PINS_RCA         {  7,    0,   13,  -1 }   // Module13.2 RCA (PCM5102A)
 #define WH_PINS_MODULE      {  0,    6,   13,   7 }   // Module Audio (switch on B)
 
@@ -38,7 +38,7 @@
 #define WH_BOARD_ID          "m5fire"
 #define WH_BOARD_NAME        "Fire"
 #define WH_HAS_TOUCH         0
-#define WH_HAS_INTERNAL_AMP  0
+#define WH_HAS_SPEAKER_AMP   0
 // mbedtls buffers (≥512 B) go to PSRAM — see net::tlsMemInit(). Without it
 // the classic ESP32 has ~50 KB internal heap left while playing: no HTTPS
 // stream (The Lot, LYL: -32512 at the handshake) and no verified API calls.

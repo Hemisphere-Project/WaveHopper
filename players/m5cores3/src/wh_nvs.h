@@ -4,7 +4,9 @@
 
 #include <Arduino.h>
 
-enum class AudioOutSetting : uint8_t { Auto = 0, Internal = 1, Rca = 2, ModuleAudio = 3 };
+// Stored values are NVS-stable: 1 was the CoreS3 internal speaker (dropped) —
+// load() reads it as Auto.
+enum class AudioOutSetting : uint8_t { Auto = 0, Rca = 2, ModuleAudio = 3 };
 
 struct WhSettings {
   String ssid;

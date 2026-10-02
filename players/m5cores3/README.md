@@ -1,7 +1,7 @@
 # WaveHopper — M5Stack player (CoreS3 + Fire)
 
 Webradio firmware for the [M5Stack CoreS3 / CoreS3 SE](https://docs.m5stack.com/en/core/CoreS3)
-(ESP32-S3, 16 MB flash, 8 MB PSRAM, 320×240 capacitive touch, AW88298 speaker amp)
+(ESP32-S3, 16 MB flash, 8 MB PSRAM, 320×240 capacitive touch)
 and the [M5Stack Fire](https://docs.m5stack.com/en/core/fire) (classic ESP32,
 16 MB flash, 4 MB PSRAM, 320×240, three buttons). Same sources, one binary per
 chip — board facts live in `include/board.h`. Basic/Gray are **not** supported
@@ -61,17 +61,18 @@ again after 3 idle minutes), from settings → wifi → phone setup, or with B h
 at power-on. Bench alternative: the serial console's `wifi-ssid` /
 `wifi-pass` / `wifi-join`.
 
-**Audio outputs** (auto-detected at boot — no manual selection):
+**Audio outputs** — the same two modules on both boards (neither has a usable
+built-in output: the CoreS3's speaker amp and the Fire's 8-bit DAC speaker are
+kept off):
 
-| Output | Hardware | Detection |
+| Output | Hardware | Selection |
 |---|---|---|
-| `module audio` | Module Audio M144 (ES8388, TRRS headphone) — pin switch on **B** | preferred when probed at I2C 0x33 |
-| `internal` | built-in AW88298 amp + speaker | fallback when no module is found |
-| `rca module` | Module13.2 RCA M125 (PCM5102A line-out) | unprobeable — not auto-selected (CoreS3) |
+| `module` | Module Audio M144 (ES8388, TRRS headphone) — pin switch **B** on the CoreS3, **A** (default) on the Fire | auto when its helper answers at I2C 0x33 |
+| `rca` | Module13.2 RCA (PCM5102A line-out) | auto otherwise — it can't be detected (no I2C), so it is the default |
 
-On the **Fire** there is no usable built-in output (its 8-bit DAC speaker is
-deliberately unused): Module Audio when it answers at 0x33 (pin switch on
-**A**, the factory default), otherwise the RCA module.
+Settings → **audio** cycles `auto` → `module` → `rca` (shown as e.g.
+`auto: module`); a change is saved at once and applies on the reboot that
+"save + reboot" triggers.
 
 ## Build & flash
 
@@ -129,7 +130,7 @@ include/certs.h     ISRG Root X1+X2 (verified TLS to waverz.net)
 include/secrets.h   wifi credentials (gitignored; see secrets.h.example)
 src/main.cpp        boot sequencer + input/UI loop
 src/player.*        audio engine: lib task mgmt, prebuffer, auto-skip supervisor
-src/audio_out.*     output profiles: AW88298 / RCA / ES8388 + probe + fault recovery
+src/audio_out.*     output profiles: Module Audio (ES8388) / RCA (PCM5102A) + probe; CoreS3 amp kept off
 src/content_sync.*  CONTENT-API §Device sync implementation
 src/fw_update.*     OTA with streaming sha256 verify
 src/now_playing.*   30 s metadata poll on a worker task (ICY fallback)

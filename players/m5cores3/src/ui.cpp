@@ -11,6 +11,7 @@
 #include "config.h"
 #include "font_vt323.h"
 #include "ui_internal.h"
+#include "wh_nvs.h"
 
 // Fonts are defined HERE only (see ui_internal.h for why).
 namespace ui::detail {
@@ -40,6 +41,28 @@ void drawRow(LovyanGFX& d, int y, const char* label, const char* value) {
     d.setTextColor(COL_ACCENT, COL_PANEL);
     d.setTextDatum(middle_right);
     d.drawString(value, W - 24, y + 18);
+  }
+}
+
+const char* g_audioActive = "";  // audio_out::name() of the profile in use
+
+AudioOutSetting audioNext(AudioOutSetting a) {
+  switch (a) {  // auto → module → rca → auto (same on every board)
+    case AudioOutSetting::Auto:        return AudioOutSetting::ModuleAudio;
+    case AudioOutSetting::ModuleAudio: return AudioOutSetting::Rca;
+    default:                           return AudioOutSetting::Auto;
+  }
+}
+
+String audioValue(AudioOutSetting a) {
+  switch (a) {
+    case AudioOutSetting::Rca:         return "rca";
+    case AudioOutSetting::ModuleAudio: return "module";
+    case AudioOutSetting::Auto:
+    default: {
+      const char* active = !strcmp(g_audioActive, "module-audio") ? "module" : g_audioActive;
+      return *active ? String("auto: ") + active : String("auto");
+    }
   }
 }
 
@@ -160,6 +183,8 @@ uint8_t g_setBright = 200;
 std::vector<StationMeta> g_metas;  // stations page working copy
 int g_metaScroll = 0;
 bool g_stationsChanged = false;
+AudioOutSetting g_setAudio = AudioOutSetting::Auto;
+bool g_audioChanged = false;  // saved to NVS — applies on reboot
 
 // Wi-Fi scan + on-screen keyboard state.
 std::vector<String> g_ssids;
@@ -414,25 +439,29 @@ void drawBottomButton(LovyanGFX& d, const char* label) {
   d.drawString(label, W / 2, 215);
 }
 
+constexpr int kMainRowY[4] = {50, 86, 122, 158};  // 34 px rows; bottom button at 198
+
 void drawSettingsMain() {
   LovyanGFX& d = frameBegin();
   d.fillScreen(COL_BG);
   drawHeader(d, "settings");
 
+  // Versions sit in the header (right) — the rows need the room.
   char buf[24];
-  snprintf(buf, sizeof(buf), "%d%%", g_setBright * 100 / 255);
-  drawRow(d, 58, "brightness", buf);
-  drawRow(d, 98, "stations", ">");
-  drawRow(d, 138, "wifi", ">");
-
   d.setFont(&F_SMALL);
-  d.setTextDatum(top_left);
+  d.setTextDatum(top_right);
   d.setTextColor(COL_DIM, COL_BG);
   snprintf(buf, sizeof(buf), "fw %s (%d)", WH_FW_VERSION, WH_FW_BUILD);
-  String info = String(buf) + "  c:" + catalog::contentVersion().substring(0, 8);
-  d.drawString(info.c_str(), 14, 178);
+  d.drawString(buf, W - 12, 6);
+  d.drawString(("c:" + catalog::contentVersion().substring(0, 8)).c_str(), W - 12, 23);
 
-  drawBottomButton(d, g_stationsChanged ? "SAVE + REBOOT" : "CLOSE");
+  snprintf(buf, sizeof(buf), "%d%%", g_setBright * 100 / 255);
+  drawRow(d, kMainRowY[0], "brightness", buf);
+  drawRow(d, kMainRowY[1], "audio", audioValue(g_setAudio).c_str());
+  drawRow(d, kMainRowY[2], "stations", ">");
+  drawRow(d, kMainRowY[3], "wifi", ">");
+
+  drawBottomButton(d, (g_stationsChanged || g_audioChanged) ? "SAVE + REBOOT" : "CLOSE");
   frameEnd();
 }
 
@@ -753,6 +782,8 @@ void render(const PlayerSnapshot& snap, const NowPlaying& np) {
   if (!g_settingsOpen && millis() >= g_overlayUntil) pushCard();
 }
 
+void setAudioActive(const char* name) { g_audioActive = name; }
+
 bool settingsOpen() { return g_settingsOpen; }
 
 bool settingsOwnsRadio() {
@@ -765,7 +796,8 @@ bool settingsOwnsRadio() {
 
 #if WH_HAS_TOUCH
 void settingsShow(AudioOutSetting audioOut, uint8_t brightness) {
-  (void)audioOut;  // audio output is auto-detected now; no manual selection
+  g_setAudio = audioOut;
+  g_audioChanged = false;
   g_settingsOpen = true;
   g_page = SettingsPage::Main;
   g_setBright = brightness;
@@ -880,25 +912,32 @@ SettingsAction settingsTouch(int x, int y) {
     }
 
     default:  // Main
-      if (y > 190 && x > W / 2 - 90 && x < W / 2 + 90) {  // CLOSE / SAVE+REBOOT
+      if (y > 194 && x > W / 2 - 90 && x < W / 2 + 90) {  // CLOSE / SAVE+REBOOT
+        const bool reboot = g_stationsChanged || g_audioChanged;
         g_settingsOpen = false;
         frameFree();
-        if (!g_stationsChanged && g_haveCard) pushCard();
-        return g_stationsChanged ? SettingsAction::CloseAndReboot : SettingsAction::Close;
+        if (!reboot && g_haveCard) pushCard();
+        return reboot ? SettingsAction::CloseAndReboot : SettingsAction::Close;
       }
-      if (y >= 58 && y < 92) {  // brightness row — cycle, applied live
+      auto inRow = [&](int r) { return y >= kMainRowY[r] && y < kMainRowY[r] + 34; };
+      if (inRow(0)) {  // brightness row — cycle, applied live
         static const uint8_t levels[] = {60, 120, 200, 255};
         size_t i = 0;
         while (i < 3 && levels[i] <= g_setBright) ++i;
         g_setBright = levels[g_setBright >= 255 ? 0 : i];
         M5.Display.setBrightness(g_setBright);
         drawSettings();
-      } else if (y >= 98 && y < 132) {  // stations row
+      } else if (inRow(1)) {  // audio row — cycle, saved now, applies on reboot
+        g_setAudio = audioNext(g_setAudio);
+        whnvs::saveAudioOut(g_setAudio);
+        g_audioChanged = true;
+        drawSettings();
+      } else if (inRow(2)) {  // stations row
         g_metas = catalog::allMeta();
         g_metaScroll = 0;
         g_page = SettingsPage::Stations;
         drawSettings();
-      } else if (y >= 138 && y < 172) {  // wifi row
+      } else if (inRow(3)) {  // wifi row
         g_page = SettingsPage::Wifi;
         drawSettings();
       }

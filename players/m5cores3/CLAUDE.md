@@ -72,23 +72,24 @@ in the root `CLAUDE.md`; the normative cross-player contract is
 
 ## Hardware truths (paid for in debugging hours — do not rediscover)
 
-- **AW88298 (internal amp, I2C 0x36)**: 16-bit registers written **MSB first**
-  (M5Unified bswap16s before its pointer write — easy to misread). The AW9523
-  (0x58) reg 0x02 bit2 rail **power-cycles the whole amp chip**.
-- **ESP32-audioI2S outputs 32-bit I2S slots** → the amp's I2SCTRL (reg 0x06)
-  needs I2SBCK=64*fs — base `0x1CE0`, *not* M5Unified's 16-bit-slot `0x14C0`.
-  Wrong ratio = PLL never locks (SYSST=0x0000) = silence with perfect-looking
-  registers.
-- **The amp cannot lock the ESP32's fractional 44.1 kHz BCLK** and faults
-  (SYSST.SWS bit8 drops) on any I2S clock reconfig. Both solved by pinning the
-  output clock: `audio.setOutput48KHz(true)` (lib resamples). Keep the 5 s
-  read-only SWS health check (power-cycle recovery) — and never rewrite a live
-  amp register that hasn't changed (audible glitch).
-- **I2S pinouts** (all share GPIO13 data; exactly one profile active):
-  internal {BCLK 34, LRCK 33, DOUT 13}, RCA M125 {7, 0, 13}, Module Audio
-  M144 {BCLK 0, LRCK 6, DOUT 13, **MCLK 7 mandatory**, pin switch on B}.
-  `Audio::setPinout` MCLK default is -1/unused — passing 0 routes MCLK onto
-  GPIO0.
+- **Audio outputs (both boards): Module Audio or RCA — nothing built in.**
+  The CoreS3 internal speaker was dropped (2026-10-02); its AW88298 amp
+  still sits on the I2S data line (GPIO13), so `audio_out::init` turns it off
+  every boot (reg 0x04 = 0x4000, 16-bit registers written **MSB first**, then
+  the AW9523 0x58 reg 0x02 bit2 power rail). Auto = Module Audio if 0x33
+  answers, else RCA — the RCA module (PCM5102A + DC-DC) has **no I2C, no
+  detectable signature**: it is the blind default, and "no module at all"
+  can't be told apart from "RCA". NVS `aout` legacy 1 (speaker) reads as auto.
+  The history of the AW88298 (64*fs I2SCTRL 0x1CE0, no lock on 44.1 kHz,
+  SWS fault power-cycling) is in git before this change, if it ever returns.
+- `audio.setOutput48KHz(true)` (constant 48 kHz I2S clock, lib resamples)
+  stays: it avoids I2S clock reconfigs (pops) on station changes.
+- **I2S pinouts** (exactly one profile active), same M-Bus positions on both
+  boards — RCA {BCLK pin22, LRCK pin24, DOUT pin23}, Module Audio adds MCLK:
+  CoreS3: RCA {7, 0, 13}, Module Audio {BCLK 0, LRCK 6, DOUT 13, **MCLK 7
+  mandatory**, switch B}. Fire: RCA {13, 0, 15} (verified 2026-10-02),
+  Module Audio {13, 12, 15, MCLK 0, switch A}. `Audio::setPinout` MCLK
+  default is -1/unused — passing 0 routes MCLK onto GPIO0.
 - **Probe 0x33 only** for Module Audio (its STM32 helper). Never probe 0x10 —
   the internal BMM150 magnetometer answers there on every CoreS3.
 - **Module Audio's codec init steals the touch bus.** `M5Module_Audio.begin`
@@ -174,8 +175,7 @@ in the root `CLAUDE.md`; the normative cross-player contract is
   - PSRAM is mandatory — ESP32-audioI2S `begin` fails without it.
   - I2S via the same M-Bus positions as the CoreS3 (M5Unified board_M5Stack
     table): Module Audio {BCLK 13, LRCK 12, DOUT 15, **MCLK 0**}, pin switch
-    on **A**; RCA {13, 0, 15}. No internal output: Module Audio if 0x33
-    answers, else RCA. The 8-bit DAC speaker (GPIO25) is held low, unused.
+    on **A**; RCA {13, 0, 15}. The 8-bit DAC speaker (GPIO25) is held low.
   - GPIO15 is also the Fire base's LED-bar data line (flickers with I2S).
   - GPIO0 = MCLK = the UART bridge's DTR line (auto-reset circuit): a held
     DTR pulls it low. Serial scripts release DTR on `ttyUSB*`, and drop RTS
@@ -234,7 +234,7 @@ in the root `CLAUDE.md`; the normative cross-player contract is
   in-flight downloads; local `manifest.json` is the commit marker (absence ⇒
   full sync). Empty FS is valid — the device syncs itself.
 - NVS namespace `wh`: `ssid`, `pass`, `last_st`, `vol` (0–21), `aout`
-  (0 auto/1 internal/2 rca/3 module), `bright`, `portal` (one-shot) —
+  (0 auto/2 rca/3 module; legacy 1 = auto), `bright`, `portal` (one-shot) —
   documented in config.h. `ssid` present but empty = forgotten (no
   secrets.h fallback).
 

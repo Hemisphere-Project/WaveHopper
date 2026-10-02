@@ -6,6 +6,8 @@
 
 #include <M5Unified.h>
 
+#include "wh_nvs.h"
+
 namespace ui::detail {
 
 constexpr int W = 320, H = 240;
@@ -43,6 +45,12 @@ extern bool g_settingsOpen;
 LovyanGFX& frameBegin();
 void frameEnd();
 void frameFree();
+
+// Audio output setting (settings → audio): the board's choices in cycle
+// order, and the row value ("auto: module", "rca", …). A change is saved to
+// NVS at once and applies on reboot (the profile is set up at boot).
+AudioOutSetting audioNext(AudioOutSetting a);
+String audioValue(AudioOutSetting a);
 
 // Push the station card back after a modal closes (no-op before the first
 // render — e.g. settings opened during the boot wifi wait).

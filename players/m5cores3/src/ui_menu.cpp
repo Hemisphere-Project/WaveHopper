@@ -27,6 +27,8 @@ int g_sel = 0;     // selected row on the current page
 int g_scroll = 0;  // first visible row (long lists)
 uint8_t g_bright = 200;
 bool g_stationsChanged = false;
+AudioOutSetting g_audio = AudioOutSetting::Auto;
+bool g_audioChanged = false;  // saved to NVS — applies on reboot
 bool g_forgetArmed = false;  // "forget network" needs a second select
 std::vector<StationMeta> g_metas;
 
@@ -47,8 +49,9 @@ std::vector<Row> rows() {
       r.push_back({"wifi", up ? WiFi.SSID() : String("offline")});
       r.push_back({"stations", ">"});
       r.push_back({"brightness", String(g_bright * 100 / 255) + "%"});
+      r.push_back({"audio", audioValue(g_audio)});
       r.push_back({"about", ">"});
-      r.push_back({g_stationsChanged ? "save + reboot" : "close", ""});
+      r.push_back({(g_stationsChanged || g_audioChanged) ? "save + reboot" : "close", ""});
       break;
     }
     case Page::Wifi:
@@ -162,7 +165,7 @@ void go(Page p) {
 ui::SettingsAction close() {
   g_settingsOpen = false;
   frameFree();
-  if (g_stationsChanged) return ui::SettingsAction::CloseAndReboot;
+  if (g_stationsChanged || g_audioChanged) return ui::SettingsAction::CloseAndReboot;
   restoreCard();
   return ui::SettingsAction::Close;
 }
@@ -184,7 +187,13 @@ ui::SettingsAction select() {
           draw();
           break;
         }
-        case 3: go(Page::About); break;
+        case 3:  // audio — cycle, saved now, applies on reboot
+          g_audio = audioNext(g_audio);
+          whnvs::saveAudioOut(g_audio);
+          g_audioChanged = true;
+          draw();
+          break;
+        case 4: go(Page::About); break;
         default: return close();
       }
       return ui::SettingsAction::None;
@@ -237,7 +246,8 @@ ui::SettingsAction select() {
 namespace ui {
 
 void settingsShow(AudioOutSetting audioOut, uint8_t brightness) {
-  (void)audioOut;  // auto-detected; no manual selection
+  g_audio = audioOut;
+  g_audioChanged = false;
   g_settingsOpen = true;
   g_bright = brightness;
   g_stationsChanged = false;

@@ -33,7 +33,7 @@
 #include "wifi_portal.h"
 
 static WhSettings settings;
-static AudioProfile profile = AudioProfile::Internal;
+static AudioProfile profile = AudioProfile::Rca;
 static uint32_t lastRenderedGen = 0;
 static uint32_t lastNpGen = 0;
 static int lastStationIndex = -1;
@@ -462,15 +462,16 @@ void setup() {
   }
 
   bool fellBack = false;
-  // Audio output is always auto-detected: Module Audio if present (I2C probe),
-  // else the internal amp. (No manual selection — RCA is unprobeable and rare.)
-  profile = audio_out::resolve(AudioOutSetting::Auto, fellBack);
-  if (!audio_out::init(profile, 48000)) {
-    profile = AudioProfile::Internal;
-    audio_out::init(profile, 48000);
+  // Stored choice (settings → audio): auto = Module Audio if present, else
+  // RCA (unprobeable). No built-in output on either board.
+  profile = audio_out::resolve(settings.audioOut, fellBack);
+  if (!audio_out::init(profile)) {
+    profile = AudioProfile::Rca;
+    audio_out::init(profile);
     fellBack = true;
   }
   ui::bootLine("audio: %s%s", audio_out::name(profile), fellBack ? " (fallback)" : "");
+  ui::setAudioActive(audio_out::name(profile));
 
   player::begin(profile, settings.volume, start);
   serial_cmd::setReady();

@@ -1,13 +1,15 @@
-// Audio output profile selection + hardware bring-up.
-// Three outputs share GPIO13 as I2S data — exactly one profile is active.
-// Facts and pin table: include/config.h + CLAUDE.md.
+// Audio output: Module Audio (M144, ES8388 headphone/line) or the RCA module
+// (Module13.2, PCM5102A line-out) on the M-Bus — the same two on every board.
+// The CoreS3's built-in speaker (AW88298 amp) is not an output any more
+// (dropped 2026-10-02); it shares the I2S data line, so init() keeps it dark.
+// Pin sets per board: include/board.h; chip facts: CLAUDE.md.
 #pragma once
 
 #include <Arduino.h>
 
 #include "wh_nvs.h"
 
-enum class AudioProfile : uint8_t { Internal, Rca, ModuleAudio };
+enum class AudioProfile : uint8_t { Rca, ModuleAudio };
 
 struct AudioPins {
   int8_t bclk, lrck, dout, mclk;  // mclk -1 = unused
@@ -15,21 +17,17 @@ struct AudioPins {
 
 namespace audio_out {
 
-// Map the stored setting to a concrete profile. Auto probes for Module Audio
-// (I2C 0x33 — its STM32 helper; never 0x10, the internal BMM150 collides).
-// RCA is unprobeable (dumb PCM5102A) and only ever reached explicitly.
-// fellBack is set when an explicit ModuleAudio setting failed the probe.
+// Map the stored setting to a profile. Auto = Module Audio when its STM32
+// helper answers at I2C 0x33 (never probe 0x10 — the BMM150 answers there),
+// else RCA (a bare PCM5102A: unprobeable, so it is the default). fellBack is
+// set when an explicit Module Audio choice failed the probe.
 AudioProfile resolve(AudioOutSetting setting, bool& fellBack);
 
 AudioPins pins(AudioProfile p);
-const char* name(AudioProfile p);
+const char* name(AudioProfile p);  // "rca" | "module-audio"
 
-// One-time hardware init for the profile (I2C amp/codec setup, power rails).
-// Returns false if the hardware refused — caller should fall back to Internal.
-bool init(AudioProfile p, uint32_t initialSampleRate);
-
-// The internal AW88298 is BCK-clocked but its AGC/boost timing tracks a rate
-// register — call whenever the stream sample rate changes. No-op for others.
-void onSampleRate(AudioProfile p, uint32_t rate);
+// One-time hardware bring-up (codec registers, speaker amp off). Returns
+// false if the hardware refused — the caller falls back to RCA.
+bool init(AudioProfile p);
 
 }  // namespace audio_out
