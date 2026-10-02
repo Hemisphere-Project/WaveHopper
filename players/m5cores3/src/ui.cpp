@@ -43,6 +43,36 @@ void drawRow(LovyanGFX& d, int y, const char* label, const char* value) {
   }
 }
 
+M5Canvas* g_frame = nullptr;
+
+LovyanGFX& frameBegin() {
+  if (!g_frame) {
+    g_frame = new M5Canvas(&M5.Display);
+    g_frame->setPsram(true);
+    g_frame->setColorDepth(16);
+    if (!g_frame->createSprite(W, H)) {  // no PSRAM to spare: draw direct
+      delete g_frame;
+      g_frame = nullptr;
+    }
+  }
+  if (g_frame) return *g_frame;
+  M5.Display.startWrite();
+  return M5.Display;
+}
+
+void frameEnd() {
+  if (g_frame)
+    g_frame->pushSprite(0, 0);
+  else
+    M5.Display.endWrite();
+}
+
+void frameFree() {
+  if (!g_frame) return;
+  g_frame->deleteSprite();
+  delete g_frame;
+  g_frame = nullptr;
+}
 }  // namespace ui::detail
 
 namespace {
@@ -51,6 +81,7 @@ using namespace ui::detail;
 
 constexpr int MARQUEE_X = 8, MARQUEE_W = W - 16, MARQUEE_H = 30;
 constexpr int MARQUEE_Y1 = 150, MARQUEE_Y2 = 184;  // title line, subtitle line
+constexpr int MARQUEE_YMID = (MARQUEE_Y1 + MARQUEE_Y2) / 2;  // a lone line sits centred
 constexpr int MARQUEE_GAP = 60;
 
 M5Canvas g_card(&M5.Display);  // full card, rebuilt on change, pushed whole
@@ -309,7 +340,7 @@ void buildCard() {
     g_card.setTextColor(COL_DIM, COL_BG);
     String msg = player::stateName(g_snap.state);
     if (g_snap.state == PlayerState::Tuning) msg = "tuning ...";
-    g_card.drawString(msg.c_str(), W / 2, MARQUEE_Y1 + MARQUEE_H / 2);
+    g_card.drawString(msg.c_str(), W / 2, MARQUEE_YMID + MARQUEE_H / 2);
   }
 
 #if WH_HAS_TOUCH
@@ -327,7 +358,7 @@ void pushCard() {
   g_card.pushSprite(0, 0);
   if (g_snap.state == PlayerState::Playing) {
     g_title.frame();
-    g_sub.frame();
+    if (g_sub.text.length()) g_sub.frame();  // empty strip would cut a centred title
   }
 }
 
@@ -380,8 +411,7 @@ void drawToast(int current) {
 }
 
 #if WH_HAS_TOUCH
-void drawBottomButton(const char* label) {
-  auto& d = M5.Display;
+void drawBottomButton(LovyanGFX& d, const char* label) {
   d.setTextDatum(middle_center);
   d.setFont(&F_MED);
   d.fillRoundRect(W / 2 - 90, 198, 180, 34, 8, COL_PANEL);
@@ -391,8 +421,7 @@ void drawBottomButton(const char* label) {
 }
 
 void drawSettingsMain() {
-  auto& d = M5.Display;
-  d.startWrite();
+  LovyanGFX& d = frameBegin();
   d.fillScreen(COL_BG);
   drawHeader(d, "settings");
 
@@ -409,15 +438,14 @@ void drawSettingsMain() {
   String info = String(buf) + "  c:" + catalog::contentVersion().substring(0, 8);
   d.drawString(info.c_str(), 14, 178);
 
-  drawBottomButton(g_stationsChanged ? "SAVE + REBOOT" : "CLOSE");
-  d.endWrite();
+  drawBottomButton(d, g_stationsChanged ? "SAVE + REBOOT" : "CLOSE");
+  frameEnd();
 }
 
 constexpr int kMetaRows = 5, kMetaRowH = 28, kMetaY0 = 56;
 
 void drawSettingsStations() {
-  auto& d = M5.Display;
-  d.startWrite();
+  LovyanGFX& d = frameBegin();
   d.fillScreen(COL_BG);
   drawHeader(d, "stations");
 
@@ -443,14 +471,13 @@ void drawSettingsStations() {
            (int)g_metas.size());
   d.drawString(pos, W - 14, 44 - 10);
 
-  drawBottomButton("BACK");
-  d.endWrite();
+  drawBottomButton(d, "BACK");
+  frameEnd();
 }
 
 // Wi-Fi page 1: current connection + actions.
 void drawSettingsWifi() {
-  auto& d = M5.Display;
-  d.startWrite();
+  LovyanGFX& d = frameBegin();
   d.fillScreen(COL_BG);
   drawHeader(d, "wifi");
 
@@ -473,14 +500,13 @@ void drawSettingsWifi() {
     d.drawString(i ? "phone setup" : "scan + type", x + (W / 2 - 16) / 2, 149);
   }
 
-  drawBottomButton("BACK");
-  d.endWrite();
+  drawBottomButton(d, "BACK");
+  frameEnd();
 }
 
 // Wi-Fi page 2: scrollable scan results.
 void drawSettingsWifiScan() {
-  auto& d = M5.Display;
-  d.startWrite();
+  LovyanGFX& d = frameBegin();
   d.fillScreen(COL_BG);
   drawHeader(d, "networks");
 
@@ -512,14 +538,13 @@ void drawSettingsWifiScan() {
              (int)g_ssids.size());
     d.drawString(pos, W - 14, 34);
   }
-  drawBottomButton("BACK");
-  d.endWrite();
+  drawBottomButton(d, "BACK");
+  frameEnd();
 }
 
 // Wi-Fi page 3: password field + on-screen keyboard.
 void drawKeyboard() {
-  auto& d = M5.Display;
-  d.startWrite();
+  LovyanGFX& d = frameBegin();
   d.fillScreen(COL_BG);
 
   d.setFont(&F_SMALL);
@@ -564,14 +589,13 @@ void drawKeyboard() {
   ctrl(72, 120, "space", COL_LINE);
   ctrl(198, 52, "del", COL_LINE);
   ctrl(256, 58, "OK", rgb565(0x14, 0x66, 0x2e));
-  d.endWrite();
+  frameEnd();
 }
 
 // Full-screen "joining" notice: the join attempt blocks the UI task for up
 // to ~12 s — without this the keyboard looks frozen after OK.
 void drawWifiConnecting() {
-  auto& d = M5.Display;
-  d.startWrite();
+  LovyanGFX& d = frameBegin();
   d.fillScreen(COL_BG);
   drawHeader(d, "wifi");
   d.setFont(&F_MED);
@@ -583,7 +607,7 @@ void drawWifiConnecting() {
   d.setFont(&F_SMALL);
   d.setTextColor(COL_DIM, COL_BG);
   d.drawString("takes a few seconds", W / 2, 140);
-  d.endWrite();
+  frameEnd();
 }
 
 void drawSettings() {
@@ -597,14 +621,13 @@ void drawSettings() {
 }
 
 void doWifiScan() {
-  auto& d = M5.Display;
-  d.startWrite();
+  LovyanGFX& d = frameBegin();
   d.fillScreen(COL_BG);
   d.setFont(&F_MED);
   d.setTextDatum(middle_center);
   d.setTextColor(COL_FG, COL_BG);
   d.drawString("scanning ...", W / 2, H / 2);
-  d.endWrite();
+  frameEnd();
 
   // The radio rejects scan starts while an association attempt is in flight
   // (the offline-boot case: the stack cycles connect retries continuously).
@@ -731,6 +754,7 @@ void render(const PlayerSnapshot& snap, const NowPlaying& np) {
         title.c_str(), g_metaSub.c_str());
   g_title.set(title, COL_FG);
   g_sub.set(g_metaSub, COL_DIM);
+  g_title.y = g_metaSub.isEmpty() ? MARQUEE_YMID : MARQUEE_Y1;  // one line → centred
   buildCard();
   if (!g_settingsOpen && millis() >= g_overlayUntil) pushCard();
 }
@@ -791,6 +815,7 @@ SettingsAction settingsTouch(int x, int y) {
         drawSettings();
       } else if (y >= 128 && y <= 170) {
         g_settingsOpen = false;
+        frameFree();
         return SettingsAction::PhoneSetup;
       } else if (y > 190) {
         g_page = SettingsPage::Main;
@@ -855,6 +880,7 @@ SettingsAction settingsTouch(int x, int y) {
     default:  // Main
       if (y > 190 && x > W / 2 - 90 && x < W / 2 + 90) {  // CLOSE / SAVE+REBOOT
         g_settingsOpen = false;
+        frameFree();
         if (!g_stationsChanged && g_haveCard) pushCard();
         return g_stationsChanged ? SettingsAction::CloseAndReboot : SettingsAction::Close;
       }

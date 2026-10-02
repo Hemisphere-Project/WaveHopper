@@ -35,6 +35,15 @@ void drawRow(LovyanGFX& d, int y, const char* label, const char* value);
 
 // Modal settings UI owns the screen (card pushes, overlays, marquees pause).
 extern bool g_settingsOpen;
+// Modal screens (settings, menu) are composed off-screen and pushed whole —
+// drawing straight to the panel (clear, then piece by piece) flashed on every
+// change. frameBegin() returns the canvas (PSRAM, allocated on first use;
+// falls back to the panel itself), frameEnd() pushes it, frameFree() releases
+// it when the modal closes.
+LovyanGFX& frameBegin();
+void frameEnd();
+void frameFree();
+
 // Push the station card back after a modal closes (no-op before the first
 // render — e.g. settings opened during the boot wifi wait).
 void restoreCard();

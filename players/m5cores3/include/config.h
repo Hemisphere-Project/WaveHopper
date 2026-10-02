@@ -81,8 +81,8 @@
 #define WH_REBUFFER_LOW_MS     8000   // cumulative low time that triggers…
 #define WH_REBUFFER_WINDOW_MS  30000  // …within this window
 
-// Screen auto-dim: dim to a readable fraction after inactivity; any touch
-// wakes (and is swallowed). No IMU on the CoreS3 SE — no motion wake.
+// Screen auto-dim: dim to a readable fraction after inactivity; any input
+// brightens it and still acts. No IMU on the CoreS3 SE — no motion wake.
 #define WH_DIM_AFTER_MS  30000
 #define WH_STALL_MS           20000  // PLAYING with empty buffer this long = dead
 #define WH_ALLFAIL_SWEEP_MS   60000  // retry period after every station failed

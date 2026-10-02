@@ -101,6 +101,7 @@ class Audio {
     static volatile uint32_t decodeMaxUs;
     static volatile uint32_t decodeCalls;   // codec decode() calls (≈ frames)
     static volatile uint32_t i2sFramesOut;  // stereo frames accepted by I2S (playback clock)
+    static volatile uint32_t decodeErrors;  // decode() errors + zero-size frames (each = a resync = lost audio)
     // WAVEHOPPER patch 6: VU meter + spectrum analysis per sample (default on,
     // as upstream). Off = getVUlevel()/spectrum stay at rest, less CPU.
     void enableAnalysis(bool on) { m_f_analysis = on; }

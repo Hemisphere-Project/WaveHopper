@@ -30,6 +30,7 @@ bool g_stationsChanged = false;
 bool g_forgetArmed = false;  // "forget network" needs a second select
 std::vector<StationMeta> g_metas;
 
+
 struct Row {
   String label;
   String value;     // right-aligned (accent); empty = none
@@ -97,8 +98,7 @@ int drawInfo(LovyanGFX& d, int y) {
 }
 
 void draw() {
-  auto& d = M5.Display;
-  d.startWrite();
+  LovyanGFX& d = frameBegin();
   d.fillScreen(COL_BG);
   static const char* const kTitles[] = {"settings", "wifi", "stations", "about"};
   drawHeader(d, kTitles[(int)g_page]);
@@ -148,7 +148,7 @@ void draw() {
     snprintf(pos, sizeof(pos), "%d/%d", g_sel + 1, (int)r.size());
     d.drawString(pos, W - 12, 34 - 14);
   }
-  d.endWrite();
+  frameEnd();
 }
 
 void go(Page p) {
@@ -161,6 +161,7 @@ void go(Page p) {
 
 ui::SettingsAction close() {
   g_settingsOpen = false;
+  frameFree();
   if (g_stationsChanged) return ui::SettingsAction::CloseAndReboot;
   restoreCard();
   return ui::SettingsAction::Close;
@@ -191,6 +192,7 @@ ui::SettingsAction select() {
     case Page::Wifi:
       if (g_sel == 0) {
         g_settingsOpen = false;
+        frameFree();
         return ui::SettingsAction::PhoneSetup;
       }
       if (g_sel == 1) {
@@ -200,6 +202,7 @@ ui::SettingsAction select() {
           return ui::SettingsAction::None;
         }
         g_settingsOpen = false;
+        frameFree();
         return ui::SettingsAction::ForgetWifi;
       }
       go(Page::Main);
@@ -220,6 +223,7 @@ ui::SettingsAction select() {
     case Page::About:
       if (g_sel == 0) {
         g_settingsOpen = false;
+        frameFree();
         return ui::SettingsAction::CloseAndReboot;
       }
       go(Page::Main);

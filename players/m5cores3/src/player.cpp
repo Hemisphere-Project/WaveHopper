@@ -404,22 +404,23 @@ void tick() {
           // share (dec, % of one core's wall time) and its worst single call.
           uint32_t under = Audio::i2sUnderruns, busyUs = Audio::decodeBusyUs;
           uint32_t maxUs = Audio::decodeMaxUs, calls = Audio::decodeCalls;
-          uint32_t outFrames = Audio::i2sFramesOut;
+          uint32_t outFrames = Audio::i2sFramesOut, errs = Audio::decodeErrors;
           Audio::decodeCalls = 0;
           Audio::i2sFramesOut = 0;
+          Audio::decodeErrors = 0;
           Audio::i2sUnderruns = 0;
           Audio::decodeBusyUs = 0;
           Audio::decodeMaxUs = 0;
           log_i("[buf] now=%lu min=%lu target=%lu cons=%.1fKB/s arriv=%.1fKB/s "
                 "rssi=%d sleep=%d heap=%lu maxblk=%lu under=%lu dec=%.0f%% max=%.1fms "
-                "frames=%lu out=%.0fHz",
+                "frames=%lu out=%.0fHz err=%lu",
                 (unsigned long)bufNow, (unsigned long)minBuf,
                 (unsigned long)(g_targets.empty() ? 0 : g_targets[g_current]),
                 consKBs, arrivKBs, WiFi.RSSI(), (int)WiFi.getSleep(),
                 (unsigned long)ESP.getFreeHeap(),
                 (unsigned long)ESP.getMaxAllocHeap(), (unsigned long)under,
                 busyUs / (dt * 10000.0f), maxUs / 1000.0f, (unsigned long)calls,
-                outFrames / dt);
+                outFrames / dt, (unsigned long)errs);
           minBuf = UINT32_MAX;
           lastBuf = bufNow;
         }

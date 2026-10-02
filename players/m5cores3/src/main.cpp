@@ -486,30 +486,23 @@ void loop() {
     vTaskDelay(pdMS_TO_TICKS(5));
     return;
   }
-  // Auto-dim after inactivity; the waking touch is swallowed so it never
-  // changes station by accident. (No IMU on the SE — touch wake only.)
+  // Auto-dim after inactivity. Any input brightens the screen AND acts —
+  // the dimmed card stays readable, so a press means what it says (next
+  // while dimmed = wake + next). (No IMU on the SE — input wake only.)
   auto t = M5.Touch.getDetail();
   static uint32_t lastInteraction = millis();
   static bool dimmed = false;
-  static bool wakeSwallow = false;
   bool anyInput = t.isPressed() || M5.BtnA.isPressed() || M5.BtnB.isPressed() ||
                   M5.BtnC.isPressed();
   if (anyInput) {
     lastInteraction = millis();
     if (dimmed) {
       dimmed = false;
-      wakeSwallow = true;
       M5.Display.setBrightness(settings.brightness);
     }
   } else if (!dimmed && millis() - lastInteraction > WH_DIM_AFTER_MS) {
     dimmed = true;
     M5.Display.setBrightness(max<uint8_t>(settings.brightness / 4, 12));
-  }
-  if (wakeSwallow) {
-    if (!anyInput) wakeSwallow = false;  // gesture over — resume input handling
-    ui::tick();
-    vTaskDelay(pdMS_TO_TICKS(5));
-    return;
   }
 
   PlayerSnapshot snap = player::snapshot();

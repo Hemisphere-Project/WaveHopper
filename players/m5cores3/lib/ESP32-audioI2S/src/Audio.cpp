@@ -5654,11 +5654,15 @@ int Audio::sendBytes(uint8_t* data, size_t len) {
     //        < 0: there has been an error
     //       -100: serious error, stop song
 
-    if (res < 0) { return decodeError(res, data, bytesDecoded); }                        // Error, skip the frame...
+    if (res < 0) { // Error, skip the frame...
+        decodeErrors = decodeErrors + 1; // WAVEHOPPER patch 5
+        return decodeError(res, data, bytesDecoded);
+    }
     if (res > 99) { return decodeContinue(res, data, bytesDecoded, &m_sbyt.bytesLeft); } // decoder needs more data...
 
     if ((bytesDecoded == 0) && (m_codec != CODEC_VORBIS && m_codec != CODEC_FLAC)) { // unlikely framesize, exept VORBIS decodes lastSegmentTable
         info(*this, evt_info, "framesize is 0, start decoding again");
+        decodeErrors = decodeErrors + 1; // WAVEHOPPER patch 5
         m_f_playing = false; // seek for new syncword
         // we're here because there was a wrong sync word so skip one byte and seek for the next
         return 1;
@@ -7875,6 +7879,7 @@ volatile uint32_t Audio::decodeBusyUs = 0;
 volatile uint32_t Audio::decodeMaxUs = 0;
 volatile uint32_t Audio::decodeCalls = 0;
 volatile uint32_t Audio::i2sFramesOut = 0;
+volatile uint32_t Audio::decodeErrors = 0;
 
 void Audio::audioTask() {
     while (m_f_audioTaskIsRunning) {
