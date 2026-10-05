@@ -87,7 +87,7 @@ stations are appended alphabetically by the build).
 
 ### Current catalog
 
-24 channels across 7 stations, 2 parked:
+24 channels across 7 stations:
 
 | Station        | Channels | Source         | Status |
 |----------------|----------|----------------|--------|
@@ -98,8 +98,6 @@ stations are appended alphabetically by the build).
 | NTS            | 18       | Radiomast      | added  |
 | The Lot Radio  | 1        | Livepeer (HLS) | added  |
 | Wave Zero      | 1        | AzuraCast      | added  |
-| Threads Radio  | —        | dead Airtime   | broken |
-| VIZI Radio     | —        | site offline   | broken |
 
 ### Importing stations
 
