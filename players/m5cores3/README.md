@@ -146,6 +146,7 @@ CLAUDE.md           working rules + hardware truths for AI agents — read it
 
 ## Licensing
 
-GPL-3.0 (whole repo). The audio pipeline links
+GPL-3.0 (this firmware; the web player and phone app are MPL-2.0, see the root
+[README](../../README.md#license)). The audio pipeline links
 [ESP32-audioI2S](https://github.com/schreibfaul1/ESP32-audioI2S) (GPL-3.0) and
 [M5Module-Audio](https://github.com/m5stack/M5Module-Audio) (MIT).

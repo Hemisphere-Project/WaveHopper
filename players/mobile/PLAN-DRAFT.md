@@ -14,7 +14,7 @@ Nothing here is built yet; `players/mobile/` is still a placeholder.
 | CarPlay / Android Auto | **Wanted** if reachable → in scope (phase 4); request Apple's CarPlay audio entitlement early, it takes time |
 | Station agreements | Outreach in October; **the app launches only with stations that agreed** |
 | Store pages | No copyrighted material in listings (no station logos, names in title/keywords, or third-party screenshots) |
-| License | **Open**: repo is GPL-3.0, which conflicts with App Store terms. Thomas is sole author; only the firmware must stay GPL (links GPL-3.0 ESP32-audioI2S) → relicense `players/web` + `players/mobile` (MIT/MPL) before shipping. Decide at resume. |
+| License | **Decided 2026-10-06: MPL-2.0** for `players/web` + `players/mobile` (own `LICENSE` per directory). Root and `players/m5cores3` stay GPL-3.0 (firmware links GPL-3.0 ESP32-audioI2S). Thomas is sole author. |
 
 ## Why not a plain wrapper
 

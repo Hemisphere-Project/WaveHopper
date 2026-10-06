@@ -170,5 +170,11 @@ Firmware releases for the M5 player follow the runbook in
 
 ## License
 
-GPL-3.0 — see [LICENSE](LICENSE). The M5 firmware links GPL-3.0
-[ESP32-audioI2S](https://github.com/schreibfaul1/ESP32-audioI2S).
+Split licensing:
+
+- `players/web/` and `players/mobile/` — Mozilla Public License 2.0, see
+  [players/web/LICENSE](players/web/LICENSE) and
+  [players/mobile/LICENSE](players/mobile/LICENSE).
+- Everything else, including the M5 firmware — GPL-3.0, see [LICENSE](LICENSE).
+  The M5 firmware links GPL-3.0
+  [ESP32-audioI2S](https://github.com/schreibfaul1/ESP32-audioI2S).
